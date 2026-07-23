@@ -86,8 +86,11 @@ func checkDocker() error {
 // buildDockerArgs turns config plus PTY info into a `docker run` argument
 // list. -t is only added when the client actually requested a PTY; TERM has
 // to be passed with -e since Docker doesn't forward the host environment.
-func buildDockerArgs(cfg Config, isPty bool, term string) []string {
-	args := []string{"run", "--rm", "-i"}
+// Every container gets a fixed --name so it can be killed by name later --
+// exec.Cmd only gives us a handle to the local `docker` client process, not
+// the container itself.
+func buildDockerArgs(cfg Config, isPty bool, term, name string) []string {
+	args := []string{"run", "--rm", "-i", "--name", name}
 	if isPty {
 		args = append(args, "-t", "-e", "TERM="+term)
 	}
@@ -116,18 +119,35 @@ func newHandler(cfg Config, logger *slog.Logger) ssh.Handler {
 		}()
 
 		ptyReq, winCh, isPty := s.Pty()
+		name := "sshbox-" + id
+		cmd := exec.Command("docker", buildDockerArgs(cfg, isPty, ptyReq.Term, name)...)
 
-		// exec.CommandContext ties the container's lifetime to the SSH
-		// session's context, so a dropped connection or an idle timeout
-		// kills the process (and --rm removes the container) even if the
-		// container itself never notices its stdin went away.
-		cmd := exec.CommandContext(s.Context(), "docker", buildDockerArgs(cfg, isPty, ptyReq.Term)...)
+		// A dropped connection or an idle timeout cancels s.Context(), but
+		// killing our local `docker` client process would NOT stop the
+		// container -- the daemon owns its lifecycle independently of the
+		// CLI process that started it. So we explicitly `docker kill` the
+		// named container; combined with --rm that also removes it.
+		stopWatch := make(chan struct{})
+		defer close(stopWatch)
+		go func() {
+			select {
+			case <-s.Context().Done():
+				killContainer(name, logger, id)
+			case <-stopWatch:
+			}
+		}()
 
 		if isPty {
 			runPTYSession(cmd, s, ptyReq, winCh, logger, id)
 			return
 		}
 		runPipeSession(cmd, s, logger, id)
+	}
+}
+
+func killContainer(name string, logger *slog.Logger, id string) {
+	if err := exec.Command("docker", "kill", name).Run(); err != nil {
+		logger.Debug("container kill on session end", "id", id, "container", name, "err", err)
 	}
 }
 
