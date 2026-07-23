@@ -90,6 +90,7 @@ Point at a different file with `--config path/to/file.toml`.
 - **No SFTP, SCP, or port forwarding.** It's an interactive shell, not a general SSH server.
 - **No Docker Compose.** One image, one container, per session.
 - **Linux containers only.**
+- **`alpine:latest` is barebones of barebones.** No curl, no sudo, no bash, nothing beyond a busybox userland and `apk`. Point `image` at something fuller (`ubuntu:latest`, a custom image with what you need already installed) if that's not enough. There's no way yet to install packages at session start -- see [TODO.md](TODO.md).
 - **PTY support** covers normal interactive shells, arrow keys, colors, resize. Full-screen apps that do unusual things with escape sequences haven't been tested exhaustively.
 
 ## Contributing

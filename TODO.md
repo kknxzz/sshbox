@@ -4,3 +4,4 @@
 - optional persistent scratch volume, off by default, so state can survive across connections if someone wants that
 - per-username image mapping in config.toml, so different SSH users can land in different images
 - SFTP/SCP support, if it turns out people actually want files in and out rather than just a shell
+- some way to install packages at session start (curl, sudo, git, whatever) without building a custom image for it -- worth checking the startup-time cost against just telling people to bring their own image first
