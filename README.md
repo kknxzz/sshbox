@@ -94,7 +94,9 @@ Point at a different file with `--config path/to/file.toml`.
 
 ## Contributing
 
-PRs welcome. Open issues labeled `good-first-issue` are a reasonable place to start.
+sshbox does one thing -- spin up a container and hand you a shell over SSH. It's not going to grow into an orchestration platform or a general infra ecosystem, so keep that in mind before proposing something that belongs somewhere else.
+
+PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for style notes. Open issues labeled `good-first-issue` are a reasonable place to start.
 
 ## License
 
