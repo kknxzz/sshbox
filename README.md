@@ -95,7 +95,7 @@ Point at a different file with `--config path/to/file.toml`.
 
 ## Contributing
 
-sshbox does one thing -- spin up a container and hand you a shell over SSH. It's not going to grow into an orchestration platform or a general infra ecosystem, so keep that in mind before proposing something that belongs somewhere else.
+Consider Starring this project if you liked it or found it useful. It helps out a ton.
 
 PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for style notes. Open issues labeled `good-first-issue` are a reasonable place to start.
 
