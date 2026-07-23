@@ -5,3 +5,4 @@
 - per-username image mapping in config.toml, so different SSH users can land in different images
 - SFTP/SCP support, if it turns out people actually want files in and out rather than just a shell
 - some way to install packages at session start (curl, sudo, git, whatever) without building a custom image for it -- worth checking the startup-time cost against just telling people to bring their own image first
+- some sort of hardened mode that you can choose at start and makes it harder for something to escape the container
