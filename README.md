@@ -2,6 +2,14 @@
 
 SSH into a fresh Docker container. Every connection gets a new Alpine shell; disconnect and the container is gone.
 
+<p align="center">
+
+  <img src="demo.gif" alt="sshbox demo" width="900">
+
+</p>
+^ No persistance in-between sessions.
+
+
 It's a single static binary (one TOML file). Point it at a Docker socket and it works.
 
 ## Why
