@@ -1,0 +1,7 @@
+listen_addr = ":2222"
+image = "alpine:latest"
+shell = "/bin/sh"
+network = "none"
+memory = "256m"
+cpus = "0.5"
+idle_timeout = "10m"

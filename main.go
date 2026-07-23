@@ -1,0 +1,168 @@
+// sshbox runs a disposable Docker container per SSH connection.
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"os/exec"
+	"os/signal"
+	"strings"
+	"sync/atomic"
+	"syscall"
+	"time"
+
+	"github.com/creack/pty"
+	"github.com/gliderlabs/ssh"
+)
+
+func main() {
+	cfg, err := loadConfig(os.Args[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "sshbox:", err)
+		os.Exit(1)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	if err := checkDocker(); err != nil {
+		logger.Error("docker not available", "err", err)
+		os.Exit(1)
+	}
+
+	srv := &ssh.Server{
+		Addr:        cfg.ListenAddr,
+		IdleTimeout: cfg.idleTimeout,
+		Handler:     newHandler(cfg, logger),
+		PasswordHandler: func(ctx ssh.Context, password string) bool {
+			return true
+		},
+	}
+
+	var shuttingDown atomic.Bool
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+		<-sigCh
+		logger.Info("shutting down")
+		shuttingDown.Store(true)
+		srv.Close()
+	}()
+
+	logger.Info("listening",
+		"addr", cfg.ListenAddr,
+		"image", cfg.Image,
+		"network", cfg.Network,
+		"memory", cfg.Memory,
+		"cpus", cfg.CPUs,
+		"idle_timeout", cfg.idleTimeout.String(),
+	)
+	if err := srv.ListenAndServe(); err != nil && !shuttingDown.Load() {
+		logger.Error("server stopped", "err", err)
+		os.Exit(1)
+	}
+}
+
+// checkDocker distinguishes "docker isn't installed" from "docker is
+// installed but the daemon isn't running", since the fix is different and
+// the raw error from either case is not obvious to someone new to Docker.
+func checkDocker() error {
+	if _, err := exec.LookPath("docker"); err != nil {
+		return fmt.Errorf("docker CLI not found in PATH -- install Docker first")
+	}
+
+	var stderr bytes.Buffer
+	cmd := exec.Command("docker", "info")
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		return fmt.Errorf("docker is installed but not responding -- is the Docker daemon running? (%s)", msg)
+	}
+	return nil
+}
+
+// buildDockerArgs turns config plus PTY info into a `docker run` argument
+// list. -t is only added when the client actually requested a PTY; TERM has
+// to be passed with -e since Docker doesn't forward the host environment.
+func buildDockerArgs(cfg Config, isPty bool, term string) []string {
+	args := []string{"run", "--rm", "-i"}
+	if isPty {
+		args = append(args, "-t", "-e", "TERM="+term)
+	}
+	args = append(args,
+		"--network", cfg.Network,
+		"--memory", cfg.Memory,
+		"--cpus", cfg.CPUs,
+		cfg.Image, cfg.Shell,
+	)
+	return args
+}
+
+func newHandler(cfg Config, logger *slog.Logger) ssh.Handler {
+	return func(s ssh.Session) {
+		id := s.Context().SessionID()
+		if len(id) > 8 {
+			id = id[:8]
+		}
+		user, remote := s.User(), s.RemoteAddr().String()
+		start := time.Now()
+
+		logger.Info("session opened", "id", id, "user", user, "remote", remote)
+		defer func() {
+			logger.Info("session closed", "id", id, "user", user, "remote", remote,
+				"duration", time.Since(start).Round(time.Second).String())
+		}()
+
+		ptyReq, winCh, isPty := s.Pty()
+
+		// exec.CommandContext ties the container's lifetime to the SSH
+		// session's context, so a dropped connection or an idle timeout
+		// kills the process (and --rm removes the container) even if the
+		// container itself never notices its stdin went away.
+		cmd := exec.CommandContext(s.Context(), "docker", buildDockerArgs(cfg, isPty, ptyReq.Term)...)
+
+		if isPty {
+			runPTYSession(cmd, s, ptyReq, winCh, logger, id)
+			return
+		}
+		runPipeSession(cmd, s, logger, id)
+	}
+}
+
+func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh.Window, logger *slog.Logger, id string) {
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
+		Rows: uint16(ptyReq.Window.Height),
+		Cols: uint16(ptyReq.Window.Width),
+	})
+	if err != nil {
+		logger.Error("failed to start container", "id", id, "err", err)
+		fmt.Fprintln(s, "sshbox: failed to start container:", err)
+		s.Exit(1)
+		return
+	}
+	defer ptmx.Close()
+
+	go func() {
+		for win := range winCh {
+			pty.Setsize(ptmx, &pty.Winsize{
+				Rows: uint16(win.Height),
+				Cols: uint16(win.Width),
+			})
+		}
+	}()
+
+	go io.Copy(ptmx, s) // client keystrokes -> container
+	io.Copy(s, ptmx)    // container output -> client
+	cmd.Wait()
+}
+
+func runPipeSession(cmd *exec.Cmd, s ssh.Session, logger *slog.Logger, id string) {
+	cmd.Stdin = s
+	cmd.Stdout = s
+	cmd.Stderr = s.Stderr()
+	if err := cmd.Run(); err != nil {
+		logger.Error("container exited with error", "id", id, "err", err)
+	}
+}
