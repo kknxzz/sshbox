@@ -4,6 +4,20 @@ SSH into a fresh Docker container. Every connection gets a new Alpine shell; dis
 
 It's a single static binary (one TOML file). Point it at a Docker socket and it works.
 
+## Why
+
+Give it to a friend, a co-worker, or just test something out in a disposable environment -- whoever's on the other end gets a real Alpine box to mess around in, and when they're done it just goes away, nothing left running that you forgot about.
+
+The use-cases expand even more if you have some sort of home-server. Point people at it and they get instant, disposable Linux access whenever they need it, without you handing out a real account or keeping track of which container to kill afterward. A Dockerfile with sshd baked in gets you most of the way there, but you're still the one remembering to tear the container down every time. sshbox does that part automatically, per connection.
+
+## Security model
+
+sshbox accepts any username and password, no exceptions and no key checking. Authentication is deliberately left to whatever sits in front of it -- run this behind Tailscale, a VPN, or a bastion host and let that layer decide who's even allowed to reach port 2222.
+
+Every connection spins up its own container with nothing from the host mounted into it, so a session only ever touches its own throwaway filesystem. It's killed and removed the moment you disconnect, so nothing carries over between sessions. Containers also get no network access by default and are capped at 256MB of memory and half a CPU, so a session that misbehaves is limited in what it can actually do.
+
+This keeps one session from touching your files or your other containers, but it won't hold up against someone actively trying to break out of the container -- that's a harder problem than what sshbox is solving here. Don't expose port 2222 straight to the internet and assume the container boundary alone will protect you.
+
 ## Install and run
 
 macOS:
@@ -50,6 +64,8 @@ ssh -p 2222 anyone@localhost
 
 Any username and password gets in. You land in `/bin/sh` inside a fresh `alpine:latest` container. Exit or disconnect and the container is destroyed. `docker ps -a` won't show it.
 
+Under the hood: sshbox accepts the connection, runs `docker run --rm -it <image> <shell>` and wires your terminal to it, then kills and removes the container as soon as you disconnect.
+
 ## Config
 
 sshbox reads `config.toml` from the current directory by default. Every field has a matching flag that overrides the file if passed.
@@ -68,19 +84,13 @@ Point at a different file with `--config path/to/file.toml`.
 
 ## Limitations
 
-**No authentication.** Any username or password gets in. sshbox is not meant to be your access control boundary. Put it behind Tailscale, a VPN, or an SSH bastion and let that layer decide who reaches port 2222.
-
-**Single node only.** Containers run on whatever machine sshbox is running on. No clustering, no remote Docker hosts.
-
-**No persistent storage.** Everything in the container disappears with the session. No volume mounting yet, so nothing carries between connections.
-
-**PTY support** covers normal interactive shells, arrow keys, colors, resize. Full-screen apps that do unusual things with escape sequences haven't been tested exhaustively.
-
-## Safety
-
-Containers get no network access (`--network none`) and are capped at 256MB of memory and half a CPU by default.
-
-Don't expose port 2222 directly to the internet. Anyone who reaches it gets a shell. It's fine on a LAN or behind a VPN; the container isolation here is for convenience, not a hardened security boundary.
+- **No authentication** (see Security model above).
+- **Single node only.** Containers run on whatever machine sshbox is running on. No clustering, no remote Docker hosts.
+- **No persistent storage.** Everything in the container disappears with the session. No volume mounting yet, so nothing carries between connections.
+- **No SFTP, SCP, or port forwarding.** It's an interactive shell, not a general SSH server.
+- **No Docker Compose.** One image, one container, per session.
+- **Linux containers only.**
+- **PTY support** covers normal interactive shells, arrow keys, colors, resize. Full-screen apps that do unusual things with escape sequences haven't been tested exhaustively.
 
 ## Contributing
 
