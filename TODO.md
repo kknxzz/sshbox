@@ -7,3 +7,5 @@
 - some way to install packages at session start (curl, sudo, git, whatever) without building a custom image for it -- worth checking the startup-time cost against just telling people to bring their own image first
 - some sort of hardened mode that you can choose at start and makes it harder for something to escape the container
 - might want to slow down the demo gif a bit
+- theres a lot of new files, as the project gets bigger should probably organise everything into folders
+  
