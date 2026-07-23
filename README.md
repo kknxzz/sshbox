@@ -6,7 +6,7 @@ It's a single static binary (one TOML file). Point it at a Docker socket and it 
 
 ## Why
 
-Give it to a friend, a co-worker, or just test something out in a disposable environment -- whoever's on the other end gets a real Alpine box to mess around in, and when they're done it just goes away, nothing left running that you forgot about.
+Give it to a friend, a co-worker, or just test something out in a disposable environment -- whoever's on the other end gets a real Alpine box to mess around in, and when they're done it just goes away, nothing left running that you forgot about. It's also handy for workshops, demos, or letting someone quickly reproduce an issue.
 
 The use-cases expand even more if you have some sort of home-server. Point people at it and they get instant, disposable Linux access whenever they need it, without you handing out a real account or keeping track of which container to kill afterward. A Dockerfile with sshd baked in gets you most of the way there, but you're still the one remembering to tear the container down every time. sshbox does that part automatically, per connection.
 
