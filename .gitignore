@@ -1,3 +1,4 @@
 /sshbox
 *.test
 *.out
+/host_key

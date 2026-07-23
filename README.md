@@ -79,6 +79,7 @@ sshbox reads `config.toml` from the current directory by default. Every field ha
 | `memory` | `--memory` | `256m` | Docker memory limit |
 | `cpus` | `--cpus` | `0.5` | Docker CPU limit |
 | `idle_timeout` | `--idle-timeout` | `10m` | disconnect after this long with no activity |
+| `host_key_path` | `--host-key` | `host_key` | where the ssh host key is stored, generated on first run |
 
 Point at a different file with `--config path/to/file.toml`.
 

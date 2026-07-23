@@ -3,6 +3,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func main() {
@@ -32,6 +36,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	hostKey, err := loadOrCreateHostKey(cfg.HostKeyPath)
+	if err != nil {
+		logger.Error("failed to load or create host key", "path", cfg.HostKeyPath, "err", err)
+		os.Exit(1)
+	}
+
 	srv := &ssh.Server{
 		Addr:        cfg.ListenAddr,
 		IdleTimeout: cfg.idleTimeout,
@@ -40,6 +50,7 @@ func main() {
 			return true
 		},
 	}
+	srv.AddHostKey(hostKey)
 
 	var shuttingDown atomic.Bool
 	go func() {
@@ -63,6 +74,34 @@ func main() {
 		logger.Error("server stopped", "err", err)
 		os.Exit(1)
 	}
+}
+
+// loadOrCreateHostKey reads the ssh host key from path, generating and
+// saving a new one if it doesn't exist yet. Without this, gliderlabs/ssh
+// generates a fresh throwaway key every time the server starts, which
+// makes every restart look like a different host to any client that
+// already has the old key in known_hosts.
+func loadOrCreateHostKey(path string) (gossh.Signer, error) {
+	if data, err := os.ReadFile(path); err == nil {
+		return gossh.ParsePrivateKey(data)
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := gossh.MarshalPrivateKey(priv, "sshbox host key")
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, pem.EncodeToMemory(block), 0600); err != nil {
+		return nil, err
+	}
+
+	return gossh.NewSignerFromKey(priv)
 }
 
 // checkDocker distinguishes "docker isn't installed" from "docker is
