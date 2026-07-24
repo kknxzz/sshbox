@@ -26,7 +26,9 @@ Every connection spins up its own container with nothing from the host mounted i
 
 This keeps one session from touching your files or your other containers, but it won't hold up against someone actively trying to break out of the container -- that's a harder problem than what sshbox is solving here. Don't expose port 2222 straight to the internet and assume the container boundary alone will protect you.
 
-## Install and run
+## Getting started
+
+**1. Install Go and Docker.**
 
 macOS:
 
@@ -49,28 +51,43 @@ winget install GoLang.Go
 winget install Docker.DockerDesktop
 ```
 
-Then from this repo:
+**2. Clone this repo and make sure Docker is actually running.**
+
+```
+git clone https://github.com/kknxzz/sshbox
+cd sshbox
+```
+
+`docker info` should succeed. If it doesn't, start Docker Desktop (or the docker daemon) first -- sshbox checks this at startup and refuses to run with no daemon.
+
+**3. Start sshbox.**
 
 ```
 go run .
 ```
 
-Or build first:
+or build a binary and run that instead:
 
 ```
 go build
 ./sshbox
 ```
 
-Docker needs to be running (`docker info` should succeed).
+You should see a log line like:
 
-## Usage
+```
+time=... level=INFO msg=listening addr=:2222 runtime=docker image=alpine:latest network=none memory=256m cpus=0.5 idle_timeout=10m0s
+```
+
+That means it's listening on `:2222` and ready for connections.
+
+**4. Connect.**
 
 ```
 ssh -p 2222 anyone@localhost
 ```
 
-Any username and password gets in. You land in `/bin/sh` inside a fresh `alpine:latest` container. Exit or disconnect and the container is destroyed. `docker ps -a` won't show it.
+Any username and password gets in. You land in `/bin/sh` inside a fresh `alpine:latest` container. Exit or disconnect and the container is destroyed -- `docker ps -a` won't show it.
 
 Under the hood: sshbox accepts the connection, runs `docker run --rm -it <image> <shell>` and wires your terminal to it, then kills and removes the container as soon as you disconnect.
 
