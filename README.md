@@ -14,102 +14,67 @@ SSH into a fresh Docker container. Every connection gets a new Alpine shell; dis
 </td>
 <td width="50%" align="center">
 <img src="media/demo-pty.gif" alt="sshbox real pty demo" width="440"><br>
-<sub>a real pty -- command history and vi work, not just piped text</sub>
+<sub>a real pty -- history and vi work, not just piped text</sub>
 </td>
 </tr>
 </table>
 
-It's a single static binary (one TOML file). Point it at a Docker socket and it works.
-
-[Why](#why) -- [Security model](#security-model) -- [Getting started](#getting-started) -- [Config](#config) -- [Limitations](#limitations) -- [Contributing](#contributing)
+It's a single static binary and one TOML file. Point it at a Docker socket and it works.
 
 ## Why
 
-Give it to a friend, a co-worker, or just test something out in a disposable environment -- whoever's on the other end gets a real Alpine box to mess around in, and when they're done it just goes away, nothing left running that you forgot about. It's also handy for workshops, demos, or letting someone quickly reproduce an issue.
+Give it to a friend, a co-worker, or just test something out in a disposable environment -- they get a real Alpine box, and it's gone the moment they disconnect, nothing left running that you forgot about.
 
-The use-cases expand even more if you have some sort of home-server. Point people at it and they get instant, disposable Linux access whenever they need it, without you handing out a real account or keeping track of which container to kill afterward. A Dockerfile with sshd baked in gets you most of the way there, but you're still the one remembering to tear the container down every time. sshbox does that part automatically, per connection.
+Handy for home-server setups too: point people at it and they get instant Linux access, no real account and no container to remember to clean up afterward.
 
 ## Security model
 
-sshbox accepts any username and password, no exceptions and no key checking. Authentication is deliberately left to whatever sits in front of it -- run this behind Tailscale, a VPN, or a bastion host and let that layer decide who's even allowed to reach port 2222.
+sshbox accepts any username and password -- authentication is left to whatever sits in front of it (Tailscale, a VPN, a bastion). Don't expose port 2222 straight to the internet.
 
-Every connection spins up its own container with nothing from the host mounted into it, so a session only ever touches its own throwaway filesystem. It's killed and removed the moment you disconnect, so nothing carries over between sessions. Containers also get no network access by default and are capped at 256MB of memory and half a CPU, so a session that misbehaves is limited in what it can actually do.
-
-This keeps one session from touching your files or your other containers, but it won't hold up against someone actively trying to break out of the container -- that's a harder problem than what sshbox is solving here. Don't expose port 2222 straight to the internet and assume the container boundary alone will protect you.
+Every connection gets its own container: nothing from the host mounted in, no network access by default, capped at 256MB memory and half a CPU, killed the moment you disconnect. That isolates sessions from each other and from the host, but it's not a hardened sandbox against someone actively trying to break out.
 
 <p align="center">
 <img src="media/demo-rm.gif" alt="rm -rf / inside sshbox, then reconnecting to a fresh container" width="600"><br>
-<sub><code>rm -rf /</code> inside the container -- disconnect, reconnect, and it's like it never happened</sub>
+<sub><code>rm -rf /</code> inside the container -- disconnect, reconnect, like it never happened</sub>
 </p>
 
 ## Getting started
 
-**1. Install Go and Docker.**
-
-macOS:
+Install Go and Docker:
 
 ```
-brew install go # install homebrew if you dont already have it
+# macOS
+brew install go
 brew install --cask docker
-```
 
-Linux:
-
-```
+# Linux
 sudo apt install golang-go # or your distro's package manager
 curl -fsSL https://get.docker.com | sh
-```
 
-Windows:
-
-```
+# Windows
 winget install GoLang.Go
 winget install Docker.DockerDesktop
 ```
 
-**2. Clone this repo and make sure Docker is actually running.**
+Clone and run (Docker needs to actually be running -- `docker info` should succeed):
 
 ```
 git clone https://github.com/kknxzz/sshbox
 cd sshbox
-```
-
-`docker info` should succeed. If it doesn't, start Docker Desktop (or the docker daemon) first -- sshbox checks this at startup and refuses to run with no daemon.
-
-**3. Start sshbox.**
-
-```
 go run .
 ```
 
-or build a binary and run that instead:
-
-```
-go build
-./sshbox
-```
-
-You should see a log line like:
-
-```
-time=... level=INFO msg=listening addr=:2222 runtime=docker image=alpine:latest network=none memory=256m cpus=0.5 idle_timeout=10m0s
-```
-
-That means it's listening on `:2222` and ready for connections.
-
-**4. Connect.**
+or `go build && ./sshbox`. Once it logs `listening addr=:2222 ...`, connect from another terminal:
 
 ```
 ssh -p 2222 anyone@localhost
 ```
 
-Any username and password gets in. You land in `/bin/sh` inside a fresh `alpine:latest` container. Exit or disconnect and the container is destroyed -- `docker ps -a` won't show it.
-
-Under the hood: sshbox accepts the connection, runs `docker run --rm -it <image> <shell>` and wires your terminal to it, then kills and removes the container as soon as you disconnect.
+Any username and password gets in. Exit or disconnect and the container is destroyed -- `docker ps -a` won't show it.
 
 ## Config
 
-sshbox reads `config.toml` from the current directory by default. Every field has a matching flag that overrides the file if passed.
+sshbox reads `config.toml` from the current directory by default. Every field has a matching flag that overrides the file if passed; point at a different file with `--config path/to/file.toml`.
 
 | Field | Flag | Default | Meaning |
 |-------|------|---------|---------|
@@ -123,24 +88,20 @@ sshbox reads `config.toml` from the current directory by default. Every field ha
 | `host_key_path` | `--host-key` | `host_key` | where the ssh host key is stored, generated on first run |
 | `runtime` | `--runtime` | `docker` | container runtime binary -- `docker` or `podman` |
 
-Point at a different file with `--config path/to/file.toml`.
-
 ## Limitations
 
-- **No authentication** (see Security model above).
-- **Single node only.** Containers run on whatever machine sshbox is running on. No clustering, no remote Docker hosts.
-- **No persistent storage.** Everything in the container disappears with the session. No volume mounting yet, so nothing carries between connections.
-- **No SFTP, SCP, or port forwarding.** It's an interactive shell, not a general SSH server.
-- **No Docker Compose.** One image, one container, per session.
-- **Linux containers only.**
-- **`alpine:latest` is barebones of barebones.** No curl, no sudo, no bash out of the box, just a busybox userland. `apk` is there though, so `apk add curl` (or whatever you need) works fine once you're in -- it just doesn't persist, and there's no way yet to have it happen automatically before you land in the shell. Point `image` at something fuller (`ubuntu:latest`, a custom image with what you need already installed) if you don't want to do that by hand every session.
-- **PTY support** covers normal interactive shells, arrow keys, colors, resize. Full-screen apps that do unusual things with escape sequences haven't been tested exhaustively.
+- No authentication -- see Security model above.
+- Single node only, no clustering, no remote Docker hosts.
+- No persistent storage -- nothing carries between sessions.
+- No SFTP, SCP, or port forwarding.
+- No Docker Compose -- one image, one container, per session.
+- Linux containers only.
+- `alpine:latest` is barebones -- no curl, no sudo, no bash, just busybox and `apk`. `apk add curl` works fine manually, it just doesn't persist. Point `image` at something fuller if that's annoying.
+- PTY support covers normal interactive shells: colors, resize, history. Full-screen apps with unusual escape sequences aren't tested exhaustively.
 
 ## Contributing
 
-Consider starring the project if you find it useful -- it genuinely helps other people find it.
-
-PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for style notes. Open issues labeled `good-first-issue` are a reasonable place to start.
+PRs welcome -- see [CONTRIBUTING.md](CONTRIBUTING.md) for style notes. Issues labeled `good-first-issue` are a good place to start. Star it if you find it useful.
 
 ## License
 
