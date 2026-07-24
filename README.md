@@ -1,5 +1,9 @@
 # sshbox
 
+[![ci](https://github.com/kknxzz/sshbox/actions/workflows/ci.yml/badge.svg)](https://github.com/kknxzz/sshbox/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kknxzz/sshbox)](https://goreportcard.com/report/github.com/kknxzz/sshbox)
+[![License](https://img.shields.io/github/license/kknxzz/sshbox)](LICENSE)
+
 SSH into a fresh Docker container. Every connection gets a new Alpine shell; disconnect and the container is gone.
 
 <table align="center">
@@ -16,6 +20,8 @@ SSH into a fresh Docker container. Every connection gets a new Alpine shell; dis
 </table>
 
 It's a single static binary (one TOML file). Point it at a Docker socket and it works.
+
+[Why](#why) -- [Security model](#security-model) -- [Getting started](#getting-started) -- [Config](#config) -- [Limitations](#limitations) -- [Contributing](#contributing)
 
 ## Why
 
