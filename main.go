@@ -20,10 +20,12 @@ import (
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
+
+	"sshbox/internal/config"
 )
 
 func main() {
-	cfg, err := loadConfig(os.Args[1:])
+	cfg, err := config.Load(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "sshbox:", err)
 		os.Exit(1)
@@ -44,7 +46,7 @@ func main() {
 
 	srv := &ssh.Server{
 		Addr:        cfg.ListenAddr,
-		IdleTimeout: cfg.idleTimeout,
+		IdleTimeout: cfg.IdleDuration,
 		Handler:     newHandler(cfg, logger),
 		PasswordHandler: func(ctx ssh.Context, password string) bool {
 			return true
@@ -68,7 +70,7 @@ func main() {
 		"network", cfg.Network,
 		"memory", cfg.Memory,
 		"cpus", cfg.CPUs,
-		"idle_timeout", cfg.idleTimeout.String(),
+		"idle_timeout", cfg.IdleDuration.String(),
 	)
 	if err := srv.ListenAndServe(); err != nil && !shuttingDown.Load() {
 		logger.Error("server stopped", "err", err)
@@ -128,7 +130,7 @@ func checkDocker() error {
 // Every container gets a fixed --name so it can be killed by name later --
 // exec.Cmd only gives us a handle to the local `docker` client process, not
 // the container itself.
-func buildDockerArgs(cfg Config, isPty bool, term, name string) []string {
+func buildDockerArgs(cfg config.Config, isPty bool, term, name string) []string {
 	args := []string{"run", "--rm", "-i", "--name", name}
 	if isPty {
 		args = append(args, "-t", "-e", "TERM="+term)
@@ -142,7 +144,7 @@ func buildDockerArgs(cfg Config, isPty bool, term, name string) []string {
 	return args
 }
 
-func newHandler(cfg Config, logger *slog.Logger) ssh.Handler {
+func newHandler(cfg config.Config, logger *slog.Logger) ssh.Handler {
 	return func(s ssh.Session) {
 		id := s.Context().SessionID()
 		if len(id) > 8 {

@@ -1,4 +1,6 @@
-package main
+// Package config loads sshbox's settings from a TOML file and command
+// line flags, with flags taking precedence.
+package config
 
 import (
 	"flag"
@@ -9,8 +11,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Config holds every tunable in one place. Values load from a TOML file
-// first, then get overridden by any flags the user actually passed.
+// Config holds every tunable in one place.
 type Config struct {
 	ListenAddr  string `toml:"listen_addr"`
 	Image       string `toml:"image"`
@@ -21,7 +22,7 @@ type Config struct {
 	IdleTimeout string `toml:"idle_timeout"`
 	HostKeyPath string `toml:"host_key_path"`
 
-	idleTimeout time.Duration // parsed form of IdleTimeout
+	IdleDuration time.Duration // parsed form of IdleTimeout
 }
 
 func defaultConfig() Config {
@@ -37,10 +38,10 @@ func defaultConfig() Config {
 	}
 }
 
-// loadConfig reads configPath if it exists (missing file is not an error --
-// you get the defaults), then applies any flags the user explicitly set on
-// top of it.
-func loadConfig(args []string) (Config, error) {
+// Load reads configPath if it exists (missing file is not an error --
+// you get the defaults), then applies any flags the user explicitly set
+// on top of it.
+func Load(args []string) (Config, error) {
 	fs := flag.NewFlagSet("sshbox", flag.ContinueOnError)
 
 	configPath := fs.String("config", "config.toml", "path to config file")
@@ -81,7 +82,7 @@ func loadConfig(args []string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid idle_timeout %q: %w", cfg.IdleTimeout, err)
 	}
-	cfg.idleTimeout = d
+	cfg.IdleDuration = d
 
 	return cfg, nil
 }
