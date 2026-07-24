@@ -2,13 +2,18 @@
 
 SSH into a fresh Docker container. Every connection gets a new Alpine shell; disconnect and the container is gone.
 
-<p align="center">
-
-  <img src="demo.gif" alt="sshbox demo" width="900">
-
-</p>
-^ No persistance in-between sessions.
-
+<table align="center">
+<tr>
+<td width="50%" align="center">
+<img src="demo.gif" alt="sshbox disposability demo" width="440"><br>
+<sub>disconnect, and the container is gone</sub>
+</td>
+<td width="50%" align="center">
+<img src="demo-pty.gif" alt="sshbox real pty demo" width="440"><br>
+<sub>a real pty -- command history and vi work, not just piped text</sub>
+</td>
+</tr>
+</table>
 
 It's a single static binary (one TOML file). Point it at a Docker socket and it works.
 
