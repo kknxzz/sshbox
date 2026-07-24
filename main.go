@@ -2,7 +2,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
@@ -12,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -22,6 +20,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"sshbox/internal/config"
+	"sshbox/internal/runtime"
 )
 
 func main() {
@@ -33,7 +32,8 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	if err := checkDocker(); err != nil {
+	rt := runtime.New("docker")
+	if err := rt.Check(); err != nil {
 		logger.Error("docker not available", "err", err)
 		os.Exit(1)
 	}
@@ -47,7 +47,7 @@ func main() {
 	srv := &ssh.Server{
 		Addr:        cfg.ListenAddr,
 		IdleTimeout: cfg.IdleDuration,
-		Handler:     newHandler(cfg, logger),
+		Handler:     newHandler(cfg, rt, logger),
 		PasswordHandler: func(ctx ssh.Context, password string) bool {
 			return true
 		},
@@ -106,45 +106,7 @@ func loadOrCreateHostKey(path string) (gossh.Signer, error) {
 	return gossh.NewSignerFromKey(priv)
 }
 
-// checkDocker distinguishes "docker isn't installed" from "docker is
-// installed but the daemon isn't running", since the fix is different and
-// the raw error from either case is not obvious to someone new to Docker.
-func checkDocker() error {
-	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker CLI not found in PATH -- install Docker first")
-	}
-
-	var stderr bytes.Buffer
-	cmd := exec.Command("docker", "info")
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		return fmt.Errorf("docker is installed but not responding -- is the Docker daemon running? (%s)", msg)
-	}
-	return nil
-}
-
-// buildDockerArgs turns config plus PTY info into a `docker run` argument
-// list. -t is only added when the client actually requested a PTY; TERM has
-// to be passed with -e since Docker doesn't forward the host environment.
-// Every container gets a fixed --name so it can be killed by name later --
-// exec.Cmd only gives us a handle to the local `docker` client process, not
-// the container itself.
-func buildDockerArgs(cfg config.Config, isPty bool, term, name string) []string {
-	args := []string{"run", "--rm", "-i", "--name", name}
-	if isPty {
-		args = append(args, "-t", "-e", "TERM="+term)
-	}
-	args = append(args,
-		"--network", cfg.Network,
-		"--memory", cfg.Memory,
-		"--cpus", cfg.CPUs,
-		cfg.Image, cfg.Shell,
-	)
-	return args
-}
-
-func newHandler(cfg config.Config, logger *slog.Logger) ssh.Handler {
+func newHandler(cfg config.Config, rt runtime.Runtime, logger *slog.Logger) ssh.Handler {
 	return func(s ssh.Session) {
 		id := s.Context().SessionID()
 		if len(id) > 8 {
@@ -161,19 +123,31 @@ func newHandler(cfg config.Config, logger *slog.Logger) ssh.Handler {
 
 		ptyReq, winCh, isPty := s.Pty()
 		name := "sshbox-" + id
-		cmd := exec.Command("docker", buildDockerArgs(cfg, isPty, ptyReq.Term, name)...)
+		args := rt.RunArgs(runtime.Spec{
+			Image:   cfg.Image,
+			Shell:   cfg.Shell,
+			Network: cfg.Network,
+			Memory:  cfg.Memory,
+			CPUs:    cfg.CPUs,
+			IsPty:   isPty,
+			Term:    ptyReq.Term,
+			Name:    name,
+		})
+		cmd := exec.Command(rt.Binary, args...)
 
 		// A dropped connection or an idle timeout cancels s.Context(), but
-		// killing our local `docker` client process would NOT stop the
+		// killing our local runtime client process would NOT stop the
 		// container -- the daemon owns its lifecycle independently of the
-		// CLI process that started it. So we explicitly `docker kill` the
-		// named container; combined with --rm that also removes it.
+		// CLI process that started it. So we explicitly kill the named
+		// container; combined with --rm that also removes it.
 		stopWatch := make(chan struct{})
 		defer close(stopWatch)
 		go func() {
 			select {
 			case <-s.Context().Done():
-				killContainer(name, logger, id)
+				if err := rt.Kill(name); err != nil {
+					logger.Debug("container kill on session end", "id", id, "container", name, "err", err)
+				}
 			case <-stopWatch:
 			}
 		}()
@@ -183,12 +157,6 @@ func newHandler(cfg config.Config, logger *slog.Logger) ssh.Handler {
 			return
 		}
 		runPipeSession(cmd, s, logger, id)
-	}
-}
-
-func killContainer(name string, logger *slog.Logger, id string) {
-	if err := exec.Command("docker", "kill", name).Run(); err != nil {
-		logger.Debug("container kill on session end", "id", id, "container", name, "err", err)
 	}
 }
 
