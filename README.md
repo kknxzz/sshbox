@@ -1,7 +1,7 @@
 # sshbox
 
-[![ci](https://github.com/kknxzz/sshbox/actions/workflows/ci.yml/badge.svg)](https://github.com/kknxzz/sshbox/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kknxzz/sshbox)](https://goreportcard.com/report/github.com/kknxzz/sshbox)
+[![Go version](https://img.shields.io/github/go-mod/go-version/kknxzz/sshbox)](go.mod)
+[![Latest release](https://img.shields.io/github/v/release/kknxzz/sshbox)](https://github.com/kknxzz/sshbox/releases)
 [![License](https://img.shields.io/github/license/kknxzz/sshbox)](LICENSE)
 
 SSH into a fresh Docker container. Every connection gets a new Alpine shell; disconnect and the container is gone.
@@ -133,7 +133,7 @@ Point at a different file with `--config path/to/file.toml`.
 
 ## Contributing
 
-Consider Starring this project if you liked it or found it useful. It helps out a ton.
+Consider starring the project if you find it useful -- it genuinely helps other people find it.
 
 PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for style notes. Open issues labeled `good-first-issue` are a reasonable place to start.
 
