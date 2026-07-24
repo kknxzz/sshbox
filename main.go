@@ -26,9 +26,9 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	rt := runtime.New("docker")
+	rt := runtime.New(cfg.Runtime)
 	if err := rt.Check(); err != nil {
-		logger.Error("docker not available", "err", err)
+		logger.Error(cfg.Runtime+" not available", "err", err)
 		os.Exit(1)
 	}
 
@@ -60,6 +60,7 @@ func main() {
 
 	logger.Info("listening",
 		"addr", cfg.ListenAddr,
+		"runtime", cfg.Runtime,
 		"image", cfg.Image,
 		"network", cfg.Network,
 		"memory", cfg.Memory,

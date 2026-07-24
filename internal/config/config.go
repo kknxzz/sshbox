@@ -21,6 +21,7 @@ type Config struct {
 	CPUs        string `toml:"cpus"`
 	IdleTimeout string `toml:"idle_timeout"`
 	HostKeyPath string `toml:"host_key_path"`
+	Runtime     string `toml:"runtime"`
 
 	IdleDuration time.Duration // parsed form of IdleTimeout
 }
@@ -35,6 +36,7 @@ func defaultConfig() Config {
 		CPUs:        "0.5",
 		IdleTimeout: "10m",
 		HostKeyPath: "host_key",
+		Runtime:     "docker",
 	}
 }
 
@@ -53,6 +55,7 @@ func Load(args []string) (Config, error) {
 	shell := fs.String("shell", "", "command to run inside the container")
 	idleTimeout := fs.String("idle-timeout", "", "disconnect idle sessions after this long, e.g. 10m")
 	hostKeyPath := fs.String("host-key", "", "path to persist the ssh host key")
+	runtime := fs.String("runtime", "", "container runtime binary, e.g. docker or podman")
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
@@ -77,6 +80,7 @@ func Load(args []string) (Config, error) {
 	overrideIfSet(fs, "shell", shell, &cfg.Shell)
 	overrideIfSet(fs, "idle-timeout", idleTimeout, &cfg.IdleTimeout)
 	overrideIfSet(fs, "host-key", hostKeyPath, &cfg.HostKeyPath)
+	overrideIfSet(fs, "runtime", runtime, &cfg.Runtime)
 
 	d, err := time.ParseDuration(cfg.IdleTimeout)
 	if err != nil {
