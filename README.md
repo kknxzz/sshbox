@@ -40,37 +40,37 @@ Every connection gets its own container: nothing from the host mounted in, no ne
 
 ## Getting started
 
-Install Go and Docker:
+Docker needs to be running first (`docker info` should succeed) -- `brew install --cask docker` on macOS, `curl -fsSL https://get.docker.com | sh` on Linux, or Docker Desktop on Windows. No Go required if you're using a prebuilt binary.
+
+Grab the archive for your platform from the [latest release](https://github.com/kknxzz/sshbox/releases/latest) and extract it, e.g.:
 
 ```
-# macOS
-brew install go
-brew install --cask docker
-
-# Linux
-sudo apt install golang-go # or your distro's package manager
-curl -fsSL https://get.docker.com | sh
-
-# Windows
-winget install GoLang.Go
-winget install Docker.DockerDesktop
+curl -LO https://github.com/kknxzz/sshbox/releases/download/v1.1.0/sshbox_1.1.0_linux_amd64.tar.gz
+tar -xzf sshbox_1.1.0_linux_amd64.tar.gz
+cd sshbox_1.1.0_linux_amd64
 ```
 
-Clone and run (Docker needs to actually be running -- `docker info` should succeed):
+(swap the filename for your OS/arch -- Windows ships as a `.zip`)
+
+Optional -- verify the download against `checksums.txt` from the same release:
 
 ```
-git clone https://github.com/kknxzz/sshbox
-cd sshbox
-go run .
+shasum -a 256 -c checksums.txt --ignore-missing   # sha256sum on Linux
 ```
 
-or `go build && ./sshbox`. Once it logs `listening addr=:2222 ...`, connect from another terminal:
+Run it, then connect from another terminal:
+
+```
+./bin/sshbox
+```
 
 ```
 ssh -p 2222 anyone@localhost
 ```
 
-Any username and password gets in. Exit or disconnect and the container is destroyed -- `docker ps -a` won't show it.
+Any username and password gets in. Exit or disconnect and the container is destroyed -- `docker ps -a` won't show it. Worth skimming the archive's `README.txt` too -- quick reference for flags and config.
+
+Building from source instead: `git clone` the repo (needs Go) and `go run .`, or grab the source-only archive from the release (`sshbox_1.1.0_source.tar.gz`, no docs or media) and `go build .`.
 
 ## Config
 

@@ -2,3 +2,4 @@
 *.test
 *.out
 /host_key
+/dist
