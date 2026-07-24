@@ -37,6 +37,11 @@ Every connection spins up its own container with nothing from the host mounted i
 
 This keeps one session from touching your files or your other containers, but it won't hold up against someone actively trying to break out of the container -- that's a harder problem than what sshbox is solving here. Don't expose port 2222 straight to the internet and assume the container boundary alone will protect you.
 
+<p align="center">
+<img src="media/demo-rm.gif" alt="rm -rf / inside sshbox, then reconnecting to a fresh container" width="600"><br>
+<sub><code>rm -rf /</code> inside the container -- disconnect, reconnect, and it's like it never happened</sub>
+</p>
+
 ## Getting started
 
 **1. Install Go and Docker.**
