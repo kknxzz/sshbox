@@ -5,11 +5,11 @@ SSH into a fresh Docker container. Every connection gets a new Alpine shell; dis
 <table align="center">
 <tr>
 <td width="50%" align="center">
-<img src="demo.gif" alt="sshbox disposability demo" width="440"><br>
+<img src="media/demo.gif" alt="sshbox disposability demo" width="440"><br>
 <sub>disconnect, and the container is gone</sub>
 </td>
 <td width="50%" align="center">
-<img src="demo-pty.gif" alt="sshbox real pty demo" width="440"><br>
+<img src="media/demo-pty.gif" alt="sshbox real pty demo" width="440"><br>
 <sub>a real pty -- command history and vi work, not just piped text</sub>
 </td>
 </tr>
