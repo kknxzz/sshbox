@@ -70,7 +70,7 @@ ssh -p 2222 anyone@localhost
 
 Any username and password gets in. Exit or disconnect and the container is destroyed -- `docker ps -a` won't show it. Worth skimming the archive's `README.txt` too -- quick reference for flags and config.
 
-Building from source instead: `git clone` the repo (needs Go) and `go run .`, or grab the source-only archive from the release (`sshbox_1.1.0_source.tar.gz`, no docs or media) and `go build .`.
+Building from source instead: `git clone` the repo (needs Go) and `go run .`, or grab the source-only archive from the release (`sshbox_1.1.0_source.tar.gz`, no docs or media) and `go build .`. Cloning gets you `main`, which can be ahead of the last tagged release -- kept working at all times, just not cut into a numbered version yet.
 
 ## Config
 
