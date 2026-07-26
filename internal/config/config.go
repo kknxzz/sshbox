@@ -23,7 +23,8 @@ type Config struct {
 	HostKeyPath string `toml:"host_key_path"`
 	Runtime     string `toml:"runtime"`
 
-	IdleDuration time.Duration // parsed form of IdleTimeout
+	IdleDuration time.Duration `toml:"-"` // parsed form of IdleTimeout
+	Check        bool          `toml:"-"` // --check: validate and exit, not a persisted setting
 }
 
 func defaultConfig() Config {
@@ -40,28 +41,49 @@ func defaultConfig() Config {
 	}
 }
 
+// stringFields lists every string setting once: its flag name, help text,
+// and a pointer to where it lives in Config. Adding a new string setting
+// means adding one line here -- nothing else needs touching.
+func stringFields(cfg *Config) []struct {
+	flag, usage string
+	target      *string
+} {
+	return []struct {
+		flag, usage string
+		target      *string
+	}{
+		{"listen", "address to listen on, e.g. :2222", &cfg.ListenAddr},
+		{"image", "docker image to run per session", &cfg.Image},
+		{"shell", "command to run inside the container", &cfg.Shell},
+		{"network", "docker --network mode", &cfg.Network},
+		{"memory", "docker --memory limit", &cfg.Memory},
+		{"cpus", "docker --cpus limit", &cfg.CPUs},
+		{"idle-timeout", "disconnect idle sessions after this long, e.g. 10m", &cfg.IdleTimeout},
+		{"host-key", "path to persist the ssh host key", &cfg.HostKeyPath},
+		{"runtime", "container runtime binary, e.g. docker or podman", &cfg.Runtime},
+	}
+}
+
 // Load reads configPath if it exists (missing file is not an error --
 // you get the defaults), then applies any flags the user explicitly set
 // on top of it.
 func Load(args []string) (Config, error) {
+	cfg := defaultConfig()
 	fs := flag.NewFlagSet("sshbox", flag.ContinueOnError)
 
 	configPath := fs.String("config", "config.toml", "path to config file")
-	listenAddr := fs.String("listen", "", "address to listen on, e.g. :2222")
-	image := fs.String("image", "", "docker image to run per session")
-	network := fs.String("network", "", "docker --network mode")
-	memory := fs.String("memory", "", "docker --memory limit")
-	cpus := fs.String("cpus", "", "docker --cpus limit")
-	shell := fs.String("shell", "", "command to run inside the container")
-	idleTimeout := fs.String("idle-timeout", "", "disconnect idle sessions after this long, e.g. 10m")
-	hostKeyPath := fs.String("host-key", "", "path to persist the ssh host key")
-	runtime := fs.String("runtime", "", "container runtime binary, e.g. docker or podman")
+	check := fs.Bool("check", false, "validate config and runtime availability, then exit")
+
+	flagVals := make(map[string]*string)
+	targets := make(map[string]*string)
+	for _, f := range stringFields(&cfg) {
+		flagVals[f.flag] = fs.String(f.flag, "", f.usage)
+		targets[f.flag] = f.target
+	}
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
-
-	cfg := defaultConfig()
 
 	if data, err := os.ReadFile(*configPath); err == nil {
 		if _, err := toml.Decode(string(data), &cfg); err != nil {
@@ -71,16 +93,16 @@ func Load(args []string) (Config, error) {
 		return Config{}, fmt.Errorf("reading %s: %w", *configPath, err)
 	}
 
-	// Flags win over whatever the config file said.
-	overrideIfSet(fs, "listen", listenAddr, &cfg.ListenAddr)
-	overrideIfSet(fs, "image", image, &cfg.Image)
-	overrideIfSet(fs, "network", network, &cfg.Network)
-	overrideIfSet(fs, "memory", memory, &cfg.Memory)
-	overrideIfSet(fs, "cpus", cpus, &cfg.CPUs)
-	overrideIfSet(fs, "shell", shell, &cfg.Shell)
-	overrideIfSet(fs, "idle-timeout", idleTimeout, &cfg.IdleTimeout)
-	overrideIfSet(fs, "host-key", hostKeyPath, &cfg.HostKeyPath)
-	overrideIfSet(fs, "runtime", runtime, &cfg.Runtime)
+	// Flags win over whatever the config file said. fs.Visit only calls
+	// back for flags actually passed on the command line, so a flag left
+	// at its zero-value default never clobbers a value from the file.
+	fs.Visit(func(fl *flag.Flag) {
+		if v, ok := flagVals[fl.Name]; ok {
+			*targets[fl.Name] = *v
+		}
+	})
+
+	cfg.Check = *check
 
 	d, err := time.ParseDuration(cfg.IdleTimeout)
 	if err != nil {
@@ -89,19 +111,4 @@ func Load(args []string) (Config, error) {
 	cfg.IdleDuration = d
 
 	return cfg, nil
-}
-
-// overrideIfSet copies *val into *dst only if the flag named name was
-// actually passed on the command line, so an empty default doesn't clobber
-// a value that came from the config file.
-func overrideIfSet(fs *flag.FlagSet, name string, val *string, dst *string) {
-	set := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			set = true
-		}
-	})
-	if set {
-		*dst = *val
-	}
 }

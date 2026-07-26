@@ -23,7 +23,7 @@ var version = "dev"
 
 func main() {
 	for _, arg := range os.Args[1:] {
-		if arg == "--version" || arg == "-version" {
+		if arg == "--version" {
 			fmt.Println("sshbox", version)
 			return
 		}
@@ -47,6 +47,11 @@ func main() {
 	if err != nil {
 		logger.Error("failed to load or create host key", "path", cfg.HostKeyPath, "err", err)
 		os.Exit(1)
+	}
+
+	if cfg.Check {
+		logger.Info("check ok", "runtime", cfg.Runtime, "image", cfg.Image, "host_key_path", cfg.HostKeyPath)
+		return
 	}
 
 	srv := &ssh.Server{
