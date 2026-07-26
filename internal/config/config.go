@@ -22,6 +22,7 @@ type Config struct {
 	IdleTimeout string `toml:"idle_timeout"`
 	HostKeyPath string `toml:"host_key_path"`
 	Runtime     string `toml:"runtime"`
+	LogFormat   string `toml:"log_format"`
 
 	IdleDuration time.Duration `toml:"-"` // parsed form of IdleTimeout
 	Check        bool          `toml:"-"` // --check: validate and exit, not a persisted setting
@@ -38,6 +39,7 @@ func defaultConfig() Config {
 		IdleTimeout: "10m",
 		HostKeyPath: "host_key",
 		Runtime:     "docker",
+		LogFormat:   "text",
 	}
 }
 
@@ -61,6 +63,7 @@ func stringFields(cfg *Config) []struct {
 		{"idle-timeout", "disconnect idle sessions after this long, e.g. 10m", &cfg.IdleTimeout},
 		{"host-key", "path to persist the ssh host key", &cfg.HostKeyPath},
 		{"runtime", "container runtime binary, e.g. docker or podman", &cfg.Runtime},
+		{"log-format", "log output format: text or json", &cfg.LogFormat},
 	}
 }
 

@@ -37,6 +37,7 @@ a matching flag -- run `sshbox -h` to see them all.
   idle_timeout   --idle-timeout   10m
   host_key_path  --host-key       host_key
   runtime        --runtime        docker
+  log_format     --log-format     text
 
 Good to know
 ------------
@@ -52,6 +53,7 @@ Good to know
 - The host key is generated once and saved to host_key, so it
   won't change every time you restart sshbox.
 - `sshbox --version` prints the build version.
+- `sshbox --check` validates the config and runtime, then exits without listening -- useful for a systemd ExecStartPre or just sanity-checking a config file.
 
 More info
 ---------

@@ -35,7 +35,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	var handler slog.Handler = slog.NewTextHandler(os.Stdout, nil)
+	if cfg.LogFormat == "json" {
+		handler = slog.NewJSONHandler(os.Stdout, nil)
+	}
+	logger := slog.New(handler)
 
 	rt := runtime.New(cfg.Runtime)
 	if err := rt.Check(); err != nil {

@@ -87,6 +87,7 @@ sshbox reads `config.toml` from the current directory by default. Every field ha
 | `idle_timeout` | `--idle-timeout` | `10m` | disconnect after this long with no activity |
 | `host_key_path` | `--host-key` | `host_key` | where the ssh host key is stored, generated on first run |
 | `runtime` | `--runtime` | `docker` | container runtime binary -- `docker` or `podman` |
+| `log_format` | `--log-format` | `text` | `text` or `json` |
 
 ## Limitations
 
