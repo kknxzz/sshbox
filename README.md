@@ -74,7 +74,7 @@ Building from source instead: `git clone` the repo (needs Go) and `go run .`, or
 
 ## Config
 
-sshbox reads `config.toml` from the current directory by default. Every field has a matching flag that overrides the file if passed; point at a different file with `--config path/to/file.toml`.
+sshbox reads `config.toml` from the current directory by default, falling back to the OS-standard config location (`~/.config/sshbox/config.toml` on Linux, the platform equivalent elsewhere) if nothing's in the current directory. Every field has a matching flag that overrides the file if passed; point at a specific file with `--config path/to/file.toml`.
 
 | Field | Flag | Default | Meaning |
 |-------|------|---------|---------|

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -88,12 +89,13 @@ func Load(args []string) (Config, error) {
 		return Config{}, err
 	}
 
-	if data, err := os.ReadFile(*configPath); err == nil {
+	path := resolveConfigPath(fs, *configPath)
+	if data, err := os.ReadFile(path); err == nil {
 		if _, err := toml.Decode(string(data), &cfg); err != nil {
-			return Config{}, fmt.Errorf("parsing %s: %w", *configPath, err)
+			return Config{}, fmt.Errorf("parsing %s: %w", path, err)
 		}
 	} else if !os.IsNotExist(err) {
-		return Config{}, fmt.Errorf("reading %s: %w", *configPath, err)
+		return Config{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 
 	// Flags win over whatever the config file said. fs.Visit only calls
@@ -114,4 +116,33 @@ func Load(args []string) (Config, error) {
 	cfg.IdleDuration = d
 
 	return cfg, nil
+}
+
+// resolveConfigPath decides which config file to read. An explicit
+// --config always wins. Otherwise, "config.toml" in the current
+// directory takes priority if it exists; failing that, it falls back to
+// the OS-standard config location (~/.config/sshbox/config.toml on
+// Linux, the platform equivalent elsewhere). If neither exists, the
+// default path is returned as-is -- a missing config file isn't an
+// error, defaults apply.
+func resolveConfigPath(fs *flag.FlagSet, defaultPath string) string {
+	explicit := false
+	fs.Visit(func(fl *flag.Flag) {
+		if fl.Name == "config" {
+			explicit = true
+		}
+	})
+	if explicit {
+		return defaultPath
+	}
+	if _, err := os.Stat(defaultPath); err == nil {
+		return defaultPath
+	}
+	if dir, err := os.UserConfigDir(); err == nil {
+		candidate := filepath.Join(dir, "sshbox", "config.toml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return defaultPath
 }

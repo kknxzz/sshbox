@@ -25,7 +25,9 @@ Config
 ------
 
 sshbox reads config.toml from the current directory if one exists,
-otherwise it falls back to built-in defaults. Every setting also has
+otherwise it checks the OS-standard config location
+(~/.config/sshbox/config.toml on Linux, the platform equivalent
+elsewhere), otherwise built-in defaults apply. Every setting also has
 a matching flag -- run `sshbox -h` to see them all.
 
   listen_addr    --listen         :2222
