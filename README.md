@@ -101,6 +101,7 @@ Every field also has an `SSHBOX_`-prefixed env var (`SSHBOX_IMAGE`, `SSHBOX_IDLE
 - Linux containers only.
 - `alpine:latest` is barebones -- no curl, no sudo, no bash, just busybox and `apk`. `apk add curl` works fine manually, it just doesn't persist. Point `image` at something fuller if that's annoying.
 - PTY support covers normal interactive shells: colors, resize, history. Full-screen apps with unusual escape sequences aren't tested exhaustively.
+- Running sshbox itself on native Windows hasn't been verified -- PTY handling there depends on `creack/pty`'s ConPTY support, which hasn't been tested against a real Windows host. macOS and Linux hosts are fully verified; using Windows as the SSH *client* connecting to a Unix-hosted sshbox works fine.
 
 ## Contributing
 
