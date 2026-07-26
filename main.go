@@ -17,7 +17,18 @@ import (
 	"sshbox/internal/session"
 )
 
+// version is set at build time via -ldflags "-X main.version=...";
+// left as "dev" for plain `go build`/`go run` so local builds still work.
+var version = "dev"
+
 func main() {
+	for _, arg := range os.Args[1:] {
+		if arg == "--version" || arg == "-version" {
+			fmt.Println("sshbox", version)
+			return
+		}
+	}
+
 	cfg, err := config.Load(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "sshbox:", err)
