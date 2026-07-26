@@ -28,7 +28,9 @@ sshbox reads config.toml from the current directory if one exists,
 otherwise it checks the OS-standard config location
 (~/.config/sshbox/config.toml on Linux, the platform equivalent
 elsewhere), otherwise built-in defaults apply. Every setting also has
-a matching flag -- run `sshbox -h` to see them all.
+a matching flag -- run `sshbox -h` to see them all. Every setting also
+has an SSHBOX_-prefixed env var (SSHBOX_IMAGE, SSHBOX_IDLE_TIMEOUT,
+etc). Precedence is defaults < config file < env var < flag.
 
   listen_addr    --listen         :2222
   image          --image          alpine:latest

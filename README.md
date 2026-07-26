@@ -89,6 +89,8 @@ sshbox reads `config.toml` from the current directory by default, falling back t
 | `runtime` | `--runtime` | `docker` | container runtime binary -- `docker` or `podman` |
 | `log_format` | `--log-format` | `text` | `text` or `json` |
 
+Every field also has an `SSHBOX_`-prefixed env var (`SSHBOX_IMAGE`, `SSHBOX_IDLE_TIMEOUT`, etc.), handy for systemd units or running sshbox itself in a container. Precedence is defaults < config file < env var < flag.
+
 ## Limitations
 
 - No authentication -- see Security model above.

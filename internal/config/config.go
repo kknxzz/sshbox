@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -98,9 +99,21 @@ func Load(args []string) (Config, error) {
 		return Config{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	// Flags win over whatever the config file said. fs.Visit only calls
-	// back for flags actually passed on the command line, so a flag left
-	// at its zero-value default never clobbers a value from the file.
+	// Env vars sit between the file and flags: SSHBOX_IDLE_TIMEOUT
+	// overrides idle_timeout from the file, but --idle-timeout still
+	// wins over both. Useful for systemd units and containerized
+	// deployments of sshbox itself, where env vars are the natural knob.
+	for flagName, target := range targets {
+		envName := "SSHBOX_" + strings.ToUpper(strings.ReplaceAll(flagName, "-", "_"))
+		if v, ok := os.LookupEnv(envName); ok {
+			*target = v
+		}
+	}
+
+	// Flags win over whatever the config file (or env) said. fs.Visit
+	// only calls back for flags actually passed on the command line, so
+	// a flag left at its zero-value default never clobbers a value set
+	// some other way.
 	fs.Visit(func(fl *flag.Flag) {
 		if v, ok := flagVals[fl.Name]; ok {
 			*targets[fl.Name] = *v
