@@ -27,6 +27,7 @@ type Config struct {
 	Runtime     string `toml:"runtime"`
 	LogFormat   string `toml:"log_format"`
 	AuditLog    string `toml:"audit_log"`
+	SessionLog  string `toml:"session_log"`
 
 	MaxSessions int `toml:"max_sessions"` // 0 means unlimited
 
@@ -47,6 +48,7 @@ func defaultConfig() Config {
 		Runtime:     "docker",
 		LogFormat:   "text",
 		AuditLog:    "",
+		SessionLog:  "",
 		MaxSessions: 0,
 	}
 }
@@ -73,6 +75,7 @@ func stringFields(cfg *Config) []struct {
 		{"runtime", "container runtime binary, e.g. docker or podman", &cfg.Runtime},
 		{"log-format", "log output format: text or json", &cfg.LogFormat},
 		{"audit-log", "path to a dedicated connection audit log file, empty to disable", &cfg.AuditLog},
+		{"session-log", "directory to record full session transcripts (raw stdin/stdout/stderr) into, empty to disable", &cfg.SessionLog},
 	}
 }
 

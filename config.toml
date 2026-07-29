@@ -9,4 +9,5 @@ host_key_path = "host_key"
 runtime = "docker"
 log_format = "text"
 audit_log = "" # optional: path to a dedicated connection audit log file
+session_log = "" # optional: directory to record full session transcripts into (see README -- privacy implications)
 max_sessions = 0

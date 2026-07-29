@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -72,6 +75,39 @@ func warnBeforeIdleTimeout(s ssh.Session, lastActivity *atomic.Int64, idleDurati
 	}
 }
 
+// syncWriter serializes writes from multiple goroutines onto one
+// underlying writer. Both directions of a session (client -> container
+// and container -> client) run in separate goroutines and both write to
+// the same recording file, so a plain *os.File isn't safe here on its
+// own -- concurrent Write calls could interleave mid-write.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
+}
+
+// openRecording creates a raw transcript file for one session under dir,
+// named by start time and session id. Returns nil if dir is empty
+// (recording disabled) or the file can't be created -- a recording
+// failure logs a warning but never blocks the session itself.
+func openRecording(dir, id string, start time.Time, logger *slog.Logger) (*os.File, io.Writer) {
+	if dir == "" {
+		return nil, nil
+	}
+	path := filepath.Join(dir, start.Format("20060102T150405")+"_"+id+".log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		logger.Error("failed to create session recording", "id", id, "path", path, "err", err)
+		return nil, nil
+	}
+	return f, &syncWriter{w: f}
+}
+
 // NewHandler builds the ssh.Handler that spawns one container per
 // session and tears it down when the session ends.
 func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog.Logger) ssh.Handler {
@@ -104,7 +140,13 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 		active.Add(1)
 		defer active.Add(-1)
 
-		logBoth("session opened", "id", id, "user", user, "remote", remote)
+		recFile, rec := openRecording(cfg.SessionLog, id, start, logger)
+		if recFile != nil {
+			defer recFile.Close()
+			logBoth("session opened", "id", id, "user", user, "remote", remote, "recording", recFile.Name())
+		} else {
+			logBoth("session opened", "id", id, "user", user, "remote", remote)
+		}
 		defer func() {
 			logBoth("session closed", "id", id, "user", user, "remote", remote,
 				"duration", time.Since(start).Round(time.Second).String())
@@ -147,14 +189,14 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 		go warnBeforeIdleTimeout(wrapped, lastActivity, cfg.IdleDuration, stopWatch)
 
 		if isPty {
-			runPTYSession(cmd, wrapped, ptyReq, winCh, logger, id)
+			runPTYSession(cmd, wrapped, ptyReq, winCh, logger, id, rec)
 			return
 		}
-		runPipeSession(cmd, wrapped, logger, id)
+		runPipeSession(cmd, wrapped, logger, id, rec)
 	}
 }
 
-func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh.Window, logger *slog.Logger, id string) {
+func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh.Window, logger *slog.Logger, id string, rec io.Writer) {
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Rows: uint16(ptyReq.Window.Height),
 		Cols: uint16(ptyReq.Window.Width),
@@ -176,15 +218,31 @@ func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ss
 		}
 	}()
 
-	go io.Copy(ptmx, s) // client keystrokes -> container
-	io.Copy(s, ptmx)    // container output -> client
+	clientIn := io.Reader(s)
+	containerOut := io.Writer(s)
+	if rec != nil {
+		clientIn = io.TeeReader(s, rec)
+		containerOut = io.MultiWriter(s, rec)
+	}
+
+	go io.Copy(ptmx, clientIn)  // client keystrokes -> container
+	io.Copy(containerOut, ptmx) // container output -> client
 	cmd.Wait()
 }
 
-func runPipeSession(cmd *exec.Cmd, s ssh.Session, logger *slog.Logger, id string) {
-	cmd.Stdin = s
-	cmd.Stdout = s
-	cmd.Stderr = s.Stderr()
+func runPipeSession(cmd *exec.Cmd, s ssh.Session, logger *slog.Logger, id string, rec io.Writer) {
+	stdin := io.Reader(s)
+	stdout := io.Writer(s)
+	stderr := io.Writer(s.Stderr())
+	if rec != nil {
+		stdin = io.TeeReader(s, rec)
+		stdout = io.MultiWriter(s, rec)
+		stderr = io.MultiWriter(s.Stderr(), rec)
+	}
+
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
 		logger.Error("container exited with error", "id", id, "err", err)
 	}

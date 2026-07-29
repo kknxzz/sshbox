@@ -38,6 +38,8 @@ Every connection gets its own container: nothing from the host mounted in, no ne
 <sub><code>rm -rf /</code> inside the container -- disconnect, reconnect, like it never happened</sub>
 </p>
 
+`--session-log` records everything a session sends and receives, raw, to a file per connection. It's opt-in and off by default on purpose -- if you turn it on, you're recording everything anyone using sshbox types and sees, including anyone you've handed a shell to per the Why section above. That's worth disclosing to them, not just quietly enabling.
+
 ## Getting started
 
 Docker needs to be running first (`docker info` should succeed) -- `brew install --cask docker` on macOS, `curl -fsSL https://get.docker.com | sh` on Linux, or Docker Desktop on Windows. No Go required if you're using a prebuilt binary.
@@ -89,6 +91,7 @@ sshbox reads `config.toml` from the current directory by default, falling back t
 | `runtime` | `--runtime` | `docker` | container runtime binary -- `docker` or `podman` |
 | `log_format` | `--log-format` | `text` | `text` or `json` |
 | `audit_log` | `--audit-log` | (none) | path to a dedicated connection log (who/when/duration), separate from the main log |
+| `session_log` | `--session-log` | (none) | directory to record full raw session transcripts into, one file per session -- see Security model |
 | `max_sessions` | `--max-sessions` | `0` | reject new connections once this many are active, `0` for unlimited |
 
 Every field also has an `SSHBOX_`-prefixed env var (`SSHBOX_IMAGE`, `SSHBOX_IDLE_TIMEOUT`, etc.), handy for systemd units or running sshbox itself in a container. Precedence is defaults < config file < env var < flag.

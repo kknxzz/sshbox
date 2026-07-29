@@ -56,6 +56,13 @@ func main() {
 		auditLogger = newLogger(f, cfg.LogFormat)
 	}
 
+	if cfg.SessionLog != "" {
+		if err := os.MkdirAll(cfg.SessionLog, 0700); err != nil {
+			logger.Error("failed to create session log directory", "path", cfg.SessionLog, "err", err)
+			os.Exit(1)
+		}
+	}
+
 	rt := runtime.New(cfg.Runtime)
 	if err := rt.Check(); err != nil {
 		logger.Error(cfg.Runtime+" not available", "err", err)

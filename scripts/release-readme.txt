@@ -43,6 +43,7 @@ etc). Precedence is defaults < config file < env var < flag.
   runtime        --runtime        docker
   log_format     --log-format     text
   audit_log      --audit-log      (none, disabled)
+  session_log    --session-log    (none, disabled)
   max_sessions   --max-sessions   0 (unlimited)
 
 Good to know
@@ -60,6 +61,7 @@ Good to know
   won't change every time you restart sshbox.
 - `sshbox --version` prints the build version.
 - `sshbox --check` validates the config and runtime, then exits without listening -- useful for a systemd ExecStartPre or just sanity-checking a config file.
+- --session-log records everything a session sends and receives, raw, per connection. It's opt-in for a reason -- enabling it means recording everything anyone using sshbox types and sees. Disclose that if you turn it on.
 
 More info
 ---------
