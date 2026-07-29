@@ -18,6 +18,60 @@ import (
 	"sshbox/internal/runtime"
 )
 
+// idleWarnBefore is how long before the configured idle timeout fires
+// that a client gets a heads-up warning. Not user-configurable -- it's a
+// small UX nicety, not worth another setting.
+const idleWarnBefore = 10 * time.Second
+
+// activitySession wraps an ssh.Session to track the last time the client
+// sent data, so the idle-timeout warning can tell how close a session
+// actually is to timing out.
+type activitySession struct {
+	ssh.Session
+	lastActivity *atomic.Int64 // unix nano
+}
+
+func (a *activitySession) Read(p []byte) (int, error) {
+	n, err := a.Session.Read(p)
+	if n > 0 {
+		a.lastActivity.Store(time.Now().UnixNano())
+	}
+	return n, err
+}
+
+// warnBeforeIdleTimeout periodically checks how long it's been since the
+// client last sent data and, once within idleWarnBefore of the
+// configured idle timeout, writes a one-time warning to the session.
+// gliderlabs/ssh enforces the actual disconnect independently of this --
+// it just gives the person using the session a heads up first.
+func warnBeforeIdleTimeout(s ssh.Session, lastActivity *atomic.Int64, idleDuration time.Duration, stop <-chan struct{}) {
+	if idleDuration <= idleWarnBefore {
+		return
+	}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	warned := false
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			remaining := idleDuration - time.Since(time.Unix(0, lastActivity.Load()))
+			switch {
+			case remaining <= 0:
+				return // the real timeout should be firing any moment now
+			case remaining <= idleWarnBefore:
+				if !warned {
+					fmt.Fprintf(s, "\r\n[sshbox] idle timeout in %s -- send any input to stay connected\r\n", remaining.Round(time.Second))
+					warned = true
+				}
+			default:
+				warned = false
+			}
+		}
+	}
+}
+
 // NewHandler builds the ssh.Handler that spawns one container per
 // session and tears it down when the session ends.
 func NewHandler(cfg config.Config, rt runtime.Runtime, logger *slog.Logger) ssh.Handler {
@@ -77,11 +131,16 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger *slog.Logger) ssh.
 			}
 		}()
 
+		lastActivity := &atomic.Int64{}
+		lastActivity.Store(time.Now().UnixNano())
+		wrapped := &activitySession{Session: s, lastActivity: lastActivity}
+		go warnBeforeIdleTimeout(wrapped, lastActivity, cfg.IdleDuration, stopWatch)
+
 		if isPty {
-			runPTYSession(cmd, s, ptyReq, winCh, logger, id)
+			runPTYSession(cmd, wrapped, ptyReq, winCh, logger, id)
 			return
 		}
-		runPipeSession(cmd, s, logger, id)
+		runPipeSession(cmd, wrapped, logger, id)
 	}
 }
 
