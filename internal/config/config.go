@@ -26,6 +26,7 @@ type Config struct {
 	HostKeyPath string `toml:"host_key_path"`
 	Runtime     string `toml:"runtime"`
 	LogFormat   string `toml:"log_format"`
+	AuditLog    string `toml:"audit_log"`
 
 	MaxSessions int `toml:"max_sessions"` // 0 means unlimited
 
@@ -45,6 +46,7 @@ func defaultConfig() Config {
 		HostKeyPath: "host_key",
 		Runtime:     "docker",
 		LogFormat:   "text",
+		AuditLog:    "",
 		MaxSessions: 0,
 	}
 }
@@ -70,6 +72,7 @@ func stringFields(cfg *Config) []struct {
 		{"host-key", "path to persist the ssh host key", &cfg.HostKeyPath},
 		{"runtime", "container runtime binary, e.g. docker or podman", &cfg.Runtime},
 		{"log-format", "log output format: text or json", &cfg.LogFormat},
+		{"audit-log", "path to a dedicated connection audit log file, empty to disable", &cfg.AuditLog},
 	}
 }
 

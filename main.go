@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -21,6 +22,13 @@ import (
 // left as "dev" for plain `go build`/`go run` so local builds still work.
 var version = "dev"
 
+func newLogger(w io.Writer, format string) *slog.Logger {
+	if format == "json" {
+		return slog.New(slog.NewJSONHandler(w, nil))
+	}
+	return slog.New(slog.NewTextHandler(w, nil))
+}
+
 func main() {
 	for _, arg := range os.Args[1:] {
 		if arg == "--version" {
@@ -35,11 +43,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	var handler slog.Handler = slog.NewTextHandler(os.Stdout, nil)
-	if cfg.LogFormat == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, nil)
+	logger := newLogger(os.Stdout, cfg.LogFormat)
+
+	var auditLogger *slog.Logger
+	if cfg.AuditLog != "" {
+		f, err := os.OpenFile(cfg.AuditLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			logger.Error("failed to open audit log", "path", cfg.AuditLog, "err", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		auditLogger = newLogger(f, cfg.LogFormat)
 	}
-	logger := slog.New(handler)
 
 	rt := runtime.New(cfg.Runtime)
 	if err := rt.Check(); err != nil {
@@ -61,7 +76,7 @@ func main() {
 	srv := &ssh.Server{
 		Addr:        cfg.ListenAddr,
 		IdleTimeout: cfg.IdleDuration,
-		Handler:     session.NewHandler(cfg, rt, logger),
+		Handler:     session.NewHandler(cfg, rt, logger, auditLogger),
 		PasswordHandler: func(ctx ssh.Context, password string) bool {
 			return true
 		},

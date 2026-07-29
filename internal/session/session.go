@@ -74,8 +74,18 @@ func warnBeforeIdleTimeout(s ssh.Session, lastActivity *atomic.Int64, idleDurati
 
 // NewHandler builds the ssh.Handler that spawns one container per
 // session and tears it down when the session ends.
-func NewHandler(cfg config.Config, rt runtime.Runtime, logger *slog.Logger) ssh.Handler {
+func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog.Logger) ssh.Handler {
 	var active atomic.Int64
+
+	// logBoth writes to the main logger, and to the audit log too if one
+	// is configured -- a dedicated, connection-only paper trail separate
+	// from the rest of sshbox's diagnostic output.
+	logBoth := func(msg string, args ...any) {
+		logger.Info(msg, args...)
+		if auditLogger != nil {
+			auditLogger.Info(msg, args...)
+		}
+	}
 
 	return func(s ssh.Session) {
 		id := s.Context().SessionID()
@@ -94,9 +104,9 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger *slog.Logger) ssh.
 		active.Add(1)
 		defer active.Add(-1)
 
-		logger.Info("session opened", "id", id, "user", user, "remote", remote)
+		logBoth("session opened", "id", id, "user", user, "remote", remote)
 		defer func() {
-			logger.Info("session closed", "id", id, "user", user, "remote", remote,
+			logBoth("session closed", "id", id, "user", user, "remote", remote,
 				"duration", time.Since(start).Round(time.Second).String())
 		}()
 
