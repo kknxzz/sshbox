@@ -88,6 +88,7 @@ sshbox reads `config.toml` from the current directory by default, falling back t
 | `host_key_path` | `--host-key` | `host_key` | where the ssh host key is stored, generated on first run |
 | `runtime` | `--runtime` | `docker` | container runtime binary -- `docker` or `podman` |
 | `log_format` | `--log-format` | `text` | `text` or `json` |
+| `max_sessions` | `--max-sessions` | `0` | reject new connections once this many are active, `0` for unlimited |
 
 Every field also has an `SSHBOX_`-prefixed env var (`SSHBOX_IMAGE`, `SSHBOX_IDLE_TIMEOUT`, etc.), handy for systemd units or running sshbox itself in a container. Precedence is defaults < config file < env var < flag.
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
+	"sync/atomic"
 	"time"
 
 	"github.com/creack/pty"
@@ -20,6 +21,8 @@ import (
 // NewHandler builds the ssh.Handler that spawns one container per
 // session and tears it down when the session ends.
 func NewHandler(cfg config.Config, rt runtime.Runtime, logger *slog.Logger) ssh.Handler {
+	var active atomic.Int64
+
 	return func(s ssh.Session) {
 		id := s.Context().SessionID()
 		if len(id) > 8 {
@@ -27,6 +30,15 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger *slog.Logger) ssh.
 		}
 		user, remote := s.User(), s.RemoteAddr().String()
 		start := time.Now()
+
+		if cfg.MaxSessions > 0 && active.Load() >= int64(cfg.MaxSessions) {
+			logger.Info("session rejected, at capacity", "id", id, "user", user, "remote", remote, "max_sessions", cfg.MaxSessions)
+			fmt.Fprintf(s, "sshbox: too many active sessions (max %d), try again shortly\r\n", cfg.MaxSessions)
+			s.Exit(1)
+			return
+		}
+		active.Add(1)
+		defer active.Add(-1)
 
 		logger.Info("session opened", "id", id, "user", user, "remote", remote)
 		defer func() {

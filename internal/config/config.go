@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,8 @@ type Config struct {
 	Runtime     string `toml:"runtime"`
 	LogFormat   string `toml:"log_format"`
 
+	MaxSessions int `toml:"max_sessions"` // 0 means unlimited
+
 	IdleDuration time.Duration `toml:"-"` // parsed form of IdleTimeout
 	Check        bool          `toml:"-"` // --check: validate and exit, not a persisted setting
 }
@@ -42,6 +45,7 @@ func defaultConfig() Config {
 		HostKeyPath: "host_key",
 		Runtime:     "docker",
 		LogFormat:   "text",
+		MaxSessions: 0,
 	}
 }
 
@@ -78,6 +82,7 @@ func Load(args []string) (Config, error) {
 
 	configPath := fs.String("config", "config.toml", "path to config file")
 	check := fs.Bool("check", false, "validate config and runtime availability, then exit")
+	maxSessions := fs.Int("max-sessions", 0, "reject new connections once this many sessions are active, 0 for unlimited")
 
 	flagVals := make(map[string]*string)
 	targets := make(map[string]*string)
@@ -109,14 +114,26 @@ func Load(args []string) (Config, error) {
 			*target = v
 		}
 	}
+	if v, ok := os.LookupEnv("SSHBOX_MAX_SESSIONS"); ok {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid SSHBOX_MAX_SESSIONS %q: %w", v, err)
+		}
+		cfg.MaxSessions = n
+	}
 
 	// Flags win over whatever the config file (or env) said. fs.Visit
 	// only calls back for flags actually passed on the command line, so
 	// a flag left at its zero-value default never clobbers a value set
-	// some other way.
+	// some other way. max-sessions needs its own check since 0 is both
+	// its default and a meaningful value, so the string-sentinel trick
+	// the other fields use doesn't apply.
 	fs.Visit(func(fl *flag.Flag) {
 		if v, ok := flagVals[fl.Name]; ok {
 			*targets[fl.Name] = *v
+		}
+		if fl.Name == "max-sessions" {
+			cfg.MaxSessions = *maxSessions
 		}
 	})
 

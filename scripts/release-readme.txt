@@ -42,6 +42,7 @@ etc). Precedence is defaults < config file < env var < flag.
   host_key_path  --host-key       host_key
   runtime        --runtime        docker
   log_format     --log-format     text
+  max_sessions   --max-sessions   0 (unlimited)
 
 Good to know
 ------------
