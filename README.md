@@ -74,6 +74,8 @@ Any username and password gets in. Exit or disconnect and the container is destr
 
 Building from source instead: `git clone` the repo (needs Go) and `go run .`, or grab the source-only archive from the release (`sshbox_1.1.0_source.tar.gz`, no docs or media) and `go build .`. Cloning gets you `main`, which can be ahead of the last tagged release -- kept working at all times, just not cut into a numbered version yet.
 
+[Documentation](docs/) covers setup, configuration, security, and troubleshooting.
+
 ## Config
 
 sshbox reads `config.toml` from the current directory by default, falling back to the OS-standard config location (`~/.config/sshbox/config.toml` on Linux, the platform equivalent elsewhere) if nothing's in the current directory. Every field has a matching flag that overrides the file if passed; point at a specific file with `--config path/to/file.toml`.

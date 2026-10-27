@@ -14,7 +14,7 @@ The website has no sign-up form or user accounts. If you open an issue on GitHub
 
 Cloudflare may process network and request information to provide DNS, security, delivery, and domain-level traffic analytics, depending on the site's Cloudflare settings. The operator may see aggregate request and security statistics in the Cloudflare dashboard. This is separate from the optional Cloudflare Web Analytics browser beacon, which is not included in the site's source code. Cloudflare's own cookies or security features may depend on the settings in use. See [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/) and [Cloudflare's analytics documentation](https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/).
 
-Your browser contacts GitHub's API to retrieve the latest release and star count. Download links take you to GitHub. GitHub receives those requests and handles them under its own [privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). If GitHub's API is unavailable, the site uses a bundled release snapshot.
+Your browser contacts GitHub's API to retrieve the latest release and star count. The documentation page also requests the latest documentation files from GitHub. Download links take you to GitHub. GitHub receives those requests and handles them under its own [privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). If GitHub's API is unavailable, the site uses a bundled release snapshot.
 
 ## Why information is used and how long it is kept
 
