@@ -23,6 +23,11 @@ import (
 // This CLI keeps a session running until sshbox explicitly kills its container.
 // It exercises the real SSH transport without requiring a Docker daemon.
 func testServer(t *testing.T, cfg config.Config) (string, *ssh.Server, string) {
+	addr, srv, dir, _ := testServerWithHandler(t, cfg)
+	return addr, srv, dir
+}
+
+func testServerWithHandler(t *testing.T, cfg config.Config) (string, *ssh.Server, string, *Handler) {
 	t.Helper()
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "runtime")
@@ -33,28 +38,35 @@ case "$1" in
   shift
   while [ "$1" != "--name" ]; do shift; done
   name=$2
+  if [ -f "$state/delay" ]; then sleep 0.2; fi
   touch "$state/$name.started"
   echo ready
   while [ ! -f "$state/$name.killed" ]; do sleep 0.02; done
   ;;
  kill) touch "$state/$2.killed" ;;
+ rm) touch "$state/$3.killed" ;;
 esac
 `
 	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := &ssh.Server{Handler: NewHandler(cfg, runtime.New(binary), logger, nil)}
+	handler := NewHandler(cfg, runtime.New(binary), logger, nil)
+	srv := &ssh.Server{Handler: handler.Handle}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	go srv.Serve(listener)
-	t.Cleanup(func() { srv.Close() })
-	return listener.Addr().String(), srv, dir
+	t.Cleanup(func() { srv.Close(); handler.Close() })
+	return listener.Addr().String(), srv, dir, handler
 }
 
 func connect(t *testing.T, addr string) (*gossh.Client, *gossh.Session, *bufio.Reader) {
+	return connectSession(t, addr, false)
+}
+
+func connectSession(t *testing.T, addr string, terminal bool) (*gossh.Client, *gossh.Session, *bufio.Reader) {
 	t.Helper()
 	client, err := gossh.Dial("tcp", addr, &gossh.ClientConfig{
 		User: "test", HostKeyCallback: gossh.InsecureIgnoreHostKey(), Timeout: 3 * time.Second,
@@ -67,9 +79,17 @@ func connect(t *testing.T, addr string) (*gossh.Client, *gossh.Session, *bufio.R
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := sess.StdinPipe(); err != nil {
+		t.Fatal(err)
+	}
 	out, err := sess.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if terminal {
+		if err := sess.RequestPty("xterm", 24, 80, gossh.TerminalModes{}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := sess.Shell(); err != nil {
 		t.Fatal(err)
@@ -221,5 +241,100 @@ func TestPipeSessionTimesOutWithoutWarning(t *testing.T) {
 			t.Fatal("idle container was not killed")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestServerShutdownWaitsForCleanup(t *testing.T) {
+	addr, srv, dir, handler := testServerWithHandler(t, config.Config{})
+	_, _, output := connect(t, addr)
+	if line, err := output.ReadString('\n'); err != nil || strings.TrimSpace(line) != "ready" {
+		t.Fatalf("start: %q %v", line, err)
+	}
+	if err := srv.Close(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { handler.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(4 * time.Second):
+		t.Fatal("shutdown did not finish")
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.killed"))
+	if len(files) != 1 {
+		t.Fatal("shutdown returned before container cleanup")
+	}
+}
+
+func TestDisconnectDuringStartup(t *testing.T) {
+	addr, srv, dir, handler := testServerWithHandler(t, config.Config{})
+	if err := os.WriteFile(filepath.Join(dir, "delay"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	client, _, _ := connect(t, addr)
+	client.Close()
+	srv.Close()
+	done := make(chan struct{})
+	go func() { handler.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(4 * time.Second):
+		t.Fatal("startup disconnect hung")
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.killed"))
+	if len(files) != 1 {
+		t.Fatal("no final cleanup attempt after interrupted startup")
+	}
+}
+
+func TestMultiplexedSessionsHaveSeparateContainers(t *testing.T) {
+	addr, _, dir, handler := testServerWithHandler(t, config.Config{MaxSessions: 2})
+	client, _, output := connect(t, addr)
+	if _, err := output.ReadString('\n'); err != nil {
+		t.Fatal(err)
+	}
+	second, err := client.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := second.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = second.Shell(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = bufio.NewReader(out).ReadString('\n'); err != nil {
+		t.Fatal(err)
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.started"))
+	if len(files) != 2 {
+		t.Fatalf("two channels shared a container name: %v", files)
+	}
+	client.Close()
+	handler.Close()
+	files, _ = filepath.Glob(filepath.Join(dir, "*.killed"))
+	if len(files) != 2 {
+		t.Fatal("multiplexed containers were not both cleaned up")
+	}
+}
+
+func TestPTYDisconnectCleansUpContainer(t *testing.T) {
+	addr, _, dir, handler := testServerWithHandler(t, config.Config{})
+	client, _, output := connectSession(t, addr, true)
+	if line, err := output.ReadString('\n'); err != nil || strings.TrimSpace(line) != "ready" {
+		t.Fatalf("start: %q %v", line, err)
+	}
+	client.Close()
+	done := make(chan struct{})
+	go func() { handler.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(4 * time.Second):
+		t.Fatal("PTY disconnect hung")
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.killed"))
+	if len(files) != 1 {
+		t.Fatal("PTY container was not cleaned up")
 	}
 }

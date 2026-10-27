@@ -7,9 +7,11 @@ package runtime
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Runtime is the container CLI sshbox drives, e.g. "docker".
@@ -69,5 +71,21 @@ func (r Runtime) RunArgs(s Spec) []string {
 // Kill stops the named container. Combined with --rm on run, that also
 // removes it.
 func (r Runtime) Kill(name string) error {
-	return exec.Command(r.Binary, "kill", name).Run()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, r.Binary, "kill", name).Run()
+}
+
+// Remove also handles containers whose CLI was interrupted during startup.
+func (r Runtime) Remove(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, r.Binary, "rm", "--force", name).CombinedOutput()
+	if err != nil && (strings.Contains(string(out), "No such container:") || strings.Contains(string(out), "no container with name or ID")) {
+		return nil // --rm already removed it after a normal exit.
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }

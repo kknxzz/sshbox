@@ -5,6 +5,8 @@ package session
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -139,9 +141,39 @@ func openRecording(dir, id string, start time.Time, logger *slog.Logger) (*os.Fi
 	return f, &syncWriter{w: f}
 }
 
+// Handler tracks sessions so shutdown can wait for container cleanup.
+type Handler struct {
+	mu      sync.Mutex
+	closing bool
+	wg      sync.WaitGroup
+	handle  ssh.Handler
+}
+
+func (h *Handler) Handle(s ssh.Session) {
+	h.mu.Lock()
+	if h.closing {
+		h.mu.Unlock()
+		s.Close()
+		return
+	}
+	h.wg.Add(1)
+	h.mu.Unlock()
+	defer h.wg.Done()
+	h.handle(s)
+}
+
+// Close stops admitting sessions and waits for handlers to finish.
+// Close the SSH server first so active connections are canceled.
+func (h *Handler) Close() {
+	h.mu.Lock()
+	h.closing = true
+	h.mu.Unlock()
+	h.wg.Wait()
+}
+
 // NewHandler builds the ssh.Handler that spawns one container per
 // session and tears it down when the session ends.
-func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog.Logger) ssh.Handler {
+func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog.Logger) *Handler {
 	var slots chan struct{}
 	if cfg.MaxSessions > 0 {
 		slots = make(chan struct{}, cfg.MaxSessions)
@@ -157,11 +189,16 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 		}
 	}
 
-	return func(s ssh.Session) {
-		id := s.Context().SessionID()
-		if len(id) > 8 {
-			id = id[:8]
+	h := &Handler{}
+	h.handle = func(s ssh.Session) {
+		var token [16]byte
+		if _, err := rand.Read(token[:]); err != nil {
+			logger.Error("failed to create session id", "err", err)
+			s.Exit(1)
+			return
 		}
+		id := hex.EncodeToString(token[:])
+		defer s.Close()
 		user, remote := s.User(), s.RemoteAddr().String()
 		start := time.Now()
 
@@ -201,24 +238,30 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 			Term:    ptyReq.Term,
 			Name:    name,
 		})
-		cmd := exec.Command(rt.Binary, args...)
-
-		// A dropped connection or an idle timeout cancels s.Context(), but
-		// killing our local runtime client process would NOT stop the
-		// container -- the daemon owns its lifecycle independently of the
-		// CLI process that started it. So we explicitly kill the named
-		// container; combined with --rm that also removes it.
 		ctx, cancel := context.WithCancel(s.Context())
-		defer cancel()
+		cmd := exec.CommandContext(ctx, rt.Binary, args...)
+		cmd.WaitDelay = 2 * time.Second
+
 		stopWatch := make(chan struct{})
-		defer close(stopWatch)
+		watchDone := make(chan struct{})
 		go func() {
+			defer close(watchDone)
 			select {
 			case <-ctx.Done():
 				if err := rt.Kill(name); err != nil {
 					logger.Debug("container kill on session end", "id", id, "container", name, "err", err)
 				}
 			case <-stopWatch:
+			}
+		}()
+		defer func() {
+			close(stopWatch)
+			cancel()
+			<-watchDone
+			// A disconnect can arrive before the runtime has created the
+			// container. Retry removal after the run process has finished.
+			if err := rt.Remove(name); err != nil {
+				logger.Warn("container cleanup failed", "id", id, "container", name, "err", err)
 			}
 		}()
 
@@ -235,14 +278,15 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 		})
 
 		if isPty {
-			runPTYSession(cmd, wrapped, ptyReq, winCh, logger, id, rec)
+			runPTYSession(cmd, wrapped, ptyReq, winCh, logger, id, rec, cancel)
 			return
 		}
 		runPipeSession(cmd, wrapped, logger, id, rec)
 	}
+	return h
 }
 
-func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh.Window, logger *slog.Logger, id string, rec io.Writer) {
+func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ssh.Window, logger *slog.Logger, id string, rec io.Writer, cancel context.CancelFunc) {
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Rows: uint16(ptyReq.Window.Height),
 		Cols: uint16(ptyReq.Window.Width),
@@ -254,13 +298,22 @@ func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ss
 		return
 	}
 	defer ptmx.Close()
+	resizeDone := make(chan struct{})
+	resizeExited := make(chan struct{})
+	defer func() { close(resizeDone); <-resizeExited }()
 
 	go func() {
-		for win := range winCh {
-			pty.Setsize(ptmx, &pty.Winsize{
-				Rows: uint16(win.Height),
-				Cols: uint16(win.Width),
-			})
+		defer close(resizeExited)
+		for {
+			select {
+			case <-resizeDone:
+				return
+			case win, ok := <-winCh:
+				if !ok {
+					return
+				}
+				pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(win.Height), Cols: uint16(win.Width)})
+			}
 		}
 	}()
 
@@ -271,9 +324,17 @@ func runPTYSession(cmd *exec.Cmd, s ssh.Session, ptyReq ssh.Pty, winCh <-chan ss
 		containerOut = io.MultiWriter(s, rec)
 	}
 
-	go io.Copy(ptmx, clientIn)  // client keystrokes -> container
-	io.Copy(containerOut, ptmx) // container output -> client
+	inputDone := make(chan struct{})
+	go func() {
+		defer close(inputDone)
+		io.Copy(ptmx, clientIn)
+		cancel()
+	}()
+	io.Copy(containerOut, ptmx)
+	cancel()
+	s.Close()
 	cmd.Wait()
+	<-inputDone
 }
 
 func runPipeSession(cmd *exec.Cmd, s ssh.Session, logger *slog.Logger, id string, rec io.Writer) {

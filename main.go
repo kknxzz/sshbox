@@ -80,9 +80,10 @@ func main() {
 		return
 	}
 
+	sessions := session.NewHandler(cfg, rt, logger, auditLogger)
 	srv := &ssh.Server{
 		Addr:    cfg.ListenAddr,
-		Handler: session.NewHandler(cfg, rt, logger, auditLogger),
+		Handler: sessions.Handle,
 		PasswordHandler: func(ctx ssh.Context, password string) bool {
 			return true
 		},
@@ -90,6 +91,7 @@ func main() {
 	srv.AddHostKey(hostKey)
 
 	var shuttingDown atomic.Bool
+	shutdownDone := make(chan struct{})
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -97,6 +99,8 @@ func main() {
 		logger.Info("shutting down")
 		shuttingDown.Store(true)
 		srv.Close()
+		sessions.Close()
+		close(shutdownDone)
 	}()
 
 	logger.Info("listening",
@@ -111,5 +115,8 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !shuttingDown.Load() {
 		logger.Error("server stopped", "err", err)
 		os.Exit(1)
+	}
+	if shuttingDown.Load() {
+		<-shutdownDone
 	}
 }
