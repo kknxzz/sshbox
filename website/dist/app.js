@@ -10,6 +10,9 @@ let selectedArch = detected.arch || (selectedOS === 'darwin' ? 'arm64' : 'amd64'
 let manuallySelected = false;
 const osPicker = document.getElementById('os-picker');
 const archPicker = document.getElementById('arch-picker');
+const platformMenu = document.querySelector('.platform-menu');
+platformMenu.id = 'platform-choices';
+document.getElementById('hero-download').addEventListener('click', event => { if (event.currentTarget.getAttribute('href') === '#platform-choices') { event.preventDefault(); platformMenu.open = true; platformMenu.querySelector('summary').focus(); } });
 const heroLink = document.getElementById('hero-download');
 const downloadLink = document.getElementById('selected-download');
 
@@ -33,12 +36,12 @@ function updateDownload() {
     heroLink.href = downloadLink.href;
     document.getElementById('hero-download-label').textContent = `Download for ${OS_NAMES[selectedOS]}`;
     let note = `${OS_NAMES[selectedOS]} · ${archLabels[selectedOS]?.[selectedArch] || selectedArch} · Docker required`;
-    if (!manuallySelected && !detected.certain) note = `${OS_NAMES[selectedOS]} · ${selectedArch === 'arm64' ? 'Apple Silicon' : 'x64'} selected — check your processor below`;
-    document.getElementById('detection-note').textContent = note;
+    if (!manuallySelected && !detected.certain) note = `${OS_NAMES[selectedOS]} · ${selectedArch === 'arm64' ? 'Apple Silicon' : 'x64'} selected — check your processor in Other platforms`;
+    document.getElementById('detection-note').textContent = selectedOS === 'windows' ? `${note} · Native Windows PTY unverified` : note;
   } else {
-    heroLink.href = '#downloads';
+    heroLink.href = '#platform-choices';
     document.getElementById('hero-download-label').textContent = 'Choose your download';
-    document.getElementById('detection-note').textContent = missingDetectedBuild ? `${OS_NAMES[detected.os]} ${detected.arch.toUpperCase()} has no published build — see other platforms` : detected.unsupported ? '64-bit builds only · choose a compatible machine below' : 'macOS, Linux & Windows · Docker required';
+    document.getElementById('detection-note').textContent = missingDetectedBuild ? `${OS_NAMES[detected.os]} ${detected.arch.toUpperCase()} has no published build — choose another platform` : detected.unsupported ? '64-bit builds only · choose a compatible machine' : 'macOS, Linux & Windows · Docker required';
   }
   if (release) document.getElementById('release-version').textContent = release.tag_name;
 }
@@ -79,8 +82,8 @@ fetch(`${REPO}/releases/latest`, {signal: AbortSignal.timeout(5000)}).then(r => 
   if (next.length) { release = latest; assets = next; updateDownload(); updateReleaseLinks(); }
 }).catch(() => {});
 fetch(REPO, {signal: AbortSignal.timeout(5000)}).then(r => { if (!r.ok) throw Error(); return r.json(); }).then(data => {
-  if (Number.isInteger(data.stargazers_count)) document.getElementById('star-count').textContent = new Intl.NumberFormat('en', {notation: 'compact', maximumFractionDigits: 1}).format(data.stargazers_count);
-}).catch(() => { document.getElementById('star-count').title = 'Last checked: 27 October 2026'; });
+  if (Number.isInteger(data.stargazers_count) && data.stargazers_count >= 100) { const count = document.getElementById('star-count'); count.textContent = new Intl.NumberFormat('en', {notation: 'compact', maximumFractionDigits: 1}).format(data.stargazers_count); count.hidden = false; }
+}).catch(() => {});
 
 let toastTimer;
 for (const button of document.querySelectorAll('[data-copy]')) button.addEventListener('click', async () => {
