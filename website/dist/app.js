@@ -102,3 +102,125 @@ for (const tab of tabs) {
     activateTab(next); next.focus();
   });
 }
+
+// Keep native selects as the no-JavaScript fallback, then enhance them.
+function enhancePicker(select) {
+  const field = select.closest('.picker-field');
+  const label = field.querySelector('label');
+  const control = document.createElement('div');
+  control.className = 'custom-picker';
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'picker-trigger';
+  trigger.id = `${select.id}-trigger`;
+  label.htmlFor = trigger.id;
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.setAttribute('aria-label', label.textContent);
+  const value = document.createElement('span');
+  value.className = 'picker-value';
+  const chevron = document.createElement('span');
+  chevron.className = 'picker-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.innerHTML = '<svg viewBox="0 0 20 20" fill="none"><path d="m5 7 5 5 5-5" stroke="currentColor" stroke-width="1.5"/></svg>';
+  trigger.append(value, chevron);
+  const list = document.createElement('div');
+  list.className = 'picker-menu';
+  list.id = `${select.id}-options`;
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', label.textContent);
+  list.hidden = true;
+  trigger.setAttribute('aria-controls', list.id);
+  control.append(trigger, list);
+  select.insertAdjacentElement('afterend', control);
+
+  function sync() {
+    value.textContent = select.selectedOptions[0]?.textContent || 'Choose an option';
+    list.replaceChildren(...Array.from(select.options, option => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'picker-option';
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(option.value === select.value));
+      item.tabIndex = -1;
+      const name = document.createElement('span');
+      name.textContent = option.textContent;
+      const check = document.createElement('span');
+      check.className = 'picker-check';
+      check.setAttribute('aria-hidden', 'true');
+      check.textContent = '✓';
+      item.append(name, check);
+      item.addEventListener('click', () => {
+        select.value = option.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        close(true);
+      });
+      return item;
+    }));
+  }
+  function close(returnFocus = false) {
+    if (list.hidden) {
+      if (returnFocus) trigger.focus();
+      return;
+    }
+    list.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    field.classList.remove('picker-open');
+    if (returnFocus) trigger.focus();
+  }
+  function open(focusEdge) {
+    document.querySelectorAll('.picker-field.picker-open .picker-trigger').forEach(other => {
+      if (other !== trigger) other.click();
+    });
+    sync();
+    list.hidden = false;
+    field.classList.add('picker-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    const items = [...list.querySelectorAll('[role=option]')];
+    const current = list.querySelector('[aria-selected=true]');
+    (focusEdge === 'first' ? items[0] : focusEdge === 'last' ? items.at(-1) : current || items[0])?.focus();
+  }
+  trigger.addEventListener('click', () => list.hidden ? open() : close());
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (list.hidden) open(event.key === 'ArrowDown' ? 'first' : 'last');
+    }
+  });
+  list.addEventListener('keydown', event => {
+    const items = [...list.querySelectorAll('[role=option]')];
+    const current = items.indexOf(document.activeElement);
+    if (event.key === 'Escape') { event.preventDefault(); close(true); return; }
+    if (event.key === 'Tab') { close(); return; }
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+      items[next]?.focus();
+    }
+  });
+  document.addEventListener('pointerdown', event => { if (!field.contains(event.target)) close(); });
+  field.addEventListener('focusout', event => { if (!field.contains(event.relatedTarget)) close(); });
+  select.addEventListener('change', sync);
+  // Architecture options are replaced when the selected OS changes.
+  new MutationObserver(sync).observe(select, { childList: true });
+  sync();
+  field.classList.add('enhanced');
+}
+
+enhancePicker(osPicker);
+enhancePicker(archPicker);
+
+// Animate each section as it enters the viewport; content stays visible if
+// JavaScript or IntersectionObserver is unavailable.
+if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) if (entry.isIntersecting) {
+      entry.target.classList.add('in-view');
+      observer.unobserve(entry.target);
+    }
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.section-heading, .steps article, .setup-intro, .setup-panel, .security-note, .download-heading, .download-picker, .faq > div').forEach(element => {
+    element.classList.add('reveal');
+    observer.observe(element);
+  });
+}
