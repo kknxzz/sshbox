@@ -58,19 +58,22 @@
 .legal-content p a{color:var(--orange);text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
 .footer>div{flex-wrap:wrap;justify-content:flex-end;row-gap:12px}
 @media(max-width:800px){.legal-main{margin-top:32px;padding:48px 25px 60px}.legal-content h1{font-size:44px;letter-spacing:-1.5px}.legal-content h2{font-size:23px}.legal-content p{font-size:15px}.footer>div{justify-content:flex-start}}
-/* Platform choice stays beside the main download action. */
-.platform-menu{position:relative;align-self:center}
-.platform-menu>summary{cursor:pointer;list-style:none;display:block}
+/* The chooser expands in the flow instead of covering the hero. */
+.download-row{display:block}
+.download-row>.button{white-space:nowrap}
+.platform-menu{display:block;width:100%;max-width:480px;margin-top:13px}
+.platform-menu>summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;list-style:none;user-select:none}
 .platform-menu>summary::-webkit-details-marker{display:none}
-.platform-menu[open]{z-index:9}
-.platform-menu[open] .download-picker,.platform-menu[open] .all-downloads,.platform-menu[open] .windows-note,.platform-menu[open] .platform-checksums{position:relative}
-.platform-menu[open]{background:var(--paper)}
-.platform-menu .download-picker{position:absolute;top:100%;left:0;width:min(430px,85vw);display:grid;grid-template-columns:1fr 1fr;margin-top:9px;padding:18px;box-shadow:0 12px 24px #25251c1a;z-index:3}
-.platform-menu .all-downloads,.platform-menu .windows-note,.platform-menu .platform-checksums{display:none}
-.platform-menu[open] .all-downloads{display:block;position:absolute;top:125px;left:0;width:min(430px,85vw);padding:0 18px 14px;background:#efefe7;border:1px solid #deded2;border-top:0;z-index:2}
-.platform-menu[open] .platform-checksums{display:block;position:absolute;top:175px;left:0;z-index:4;font:10px var(--mono);padding:8px 18px;color:var(--muted)}
-.platform-menu[open]:has(.all-downloads[open]) .platform-checksums{display:none}
+.platform-menu>summary span{display:inline-block;transition:transform .25s ease}
+.platform-menu[open]>summary span{transform:rotate(180deg)}
+.platform-panel{margin-top:12px;padding:17px 18px 14px;background:#efefe7;border:1px solid #deded2;border-radius:7px;animation:platform-enter .28s ease both}
+.platform-menu .download-picker{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0;padding:0;border:0;background:transparent}
+.platform-menu .all-downloads{position:static;display:block;margin:16px 0 0;padding:0;border:0;border-top:1px solid var(--line)}
+.platform-menu .all-downloads summary{padding:14px 0;font-size:13px}
 .platform-menu .download-list{grid-template-columns:1fr}
+.platform-menu .platform-checksums{display:inline-block;position:static;padding:6px 0;color:var(--muted);font:10px var(--mono)}
+.platform-menu .windows-note{margin:6px 0;font-size:11px}
+@keyframes platform-enter{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 .setup .security-note{grid-column:1/-1;grid-row:2;padding:22px 25px;border:1px solid #e4d9cc;border-radius:7px}
 .platform-matrix{display:grid;grid-template-columns:repeat(5,1fr);padding:0;margin:42px 0 30px;list-style:none;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .platform-matrix li{padding:24px 16px;border-right:1px solid var(--line)}
@@ -78,10 +81,20 @@
 .platform-matrix strong,.platform-matrix span{display:block;font-weight:400}.platform-matrix strong{font-size:17px}.platform-matrix span{margin-top:8px;color:var(--muted);font:11px/1.5 var(--mono)}
 .docs-main{margin-top:66px;border:1px solid var(--line);padding:70px 60px 90px}.docs-title{padding-bottom:40px;border-bottom:1px solid var(--line)}.docs-title h1{font-size:clamp(44px,5vw,70px);font-weight:400;letter-spacing:-2px;margin:0}.docs-title>p:last-child{color:var(--muted)}.docs-layout{display:grid;grid-template-columns:230px minmax(0,760px);gap:80px;padding-top:42px}.docs-sidebar{min-width:0}.docs-sidebar label{display:block;font:10px var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;color:var(--muted)}.docs-sidebar input{width:100%;padding:13px;border:1px solid #cfcfc1;border-radius:5px;background:var(--white);font:14px var(--font)}.docs-nav{display:block;margin:27px 0 0}.docs-group{margin-bottom:24px}.docs-group p{font:10px var(--mono);color:#888a7d;text-transform:uppercase;letter-spacing:.7px}.docs-group a{display:block;padding:7px 0;font-size:14px}.docs-source,.docs-status{font:11px/1.7 var(--mono);color:var(--muted)}.docs-article{padding-bottom:36px;margin-bottom:38px;border-bottom:1px solid var(--line);scroll-margin-top:30px}.docs-article h2{font-size:34px;letter-spacing:-1px;font-weight:400;margin:0 0 20px}.docs-article h3{font-size:22px;font-weight:400;margin:30px 0 12px}.docs-article p,.docs-article li{font-size:15px;line-height:1.8;color:#57594f}.docs-article a{color:var(--orange);text-decoration:underline}.docs-article code{font:13px var(--mono)}.docs-article pre{display:block;white-space:pre-wrap;padding:16px}.docs-article pre code{font-size:12px}.docs-article ul{padding-left:21px}
 @media(max-width:800px){.platform-matrix{grid-template-columns:1fr 1fr}.platform-matrix li{border-bottom:1px solid var(--line);padding:20px 12px}.platform-matrix li:first-child{padding-left:12px}.docs-main{margin-top:32px;padding:45px 25px}.docs-layout{grid-template-columns:1fr;gap:25px}.docs-nav{display:flex;flex-wrap:wrap;gap:28px}.docs-group{margin-bottom:0}.setup .security-note{grid-column:1;grid-row:auto}.footer>div{flex-wrap:wrap}}
-.platform-menu{flex:0 0 120px;width:120px}
 .download-row>.button{white-space:nowrap;flex-shrink:0}
-.platform-menu[open] .all-downloads{top:145px;z-index:4}
-.platform-menu[open] .platform-checksums{top:200px}
 @media(max-width:390px){.star-button>span:first-of-type{display:inline}}
 .hero-copy{position:relative;z-index:4}
-.platform-menu[open] .platform-checksums{width:min(430px,85vw);white-space:nowrap}
+
+/* Small reactions, with all motion disabled by reduced-motion preferences. */
+@media (prefers-reduced-motion: no-preference){
+ .container-drawing svg{animation:container-drift 7s ease-in-out infinite}
+ .art-topline .live-dot:before{animation:status-pulse 2.8s ease-in-out infinite}
+ .steps article,.platform-matrix li{transition:transform .25s ease,background-color .25s ease}
+ .steps article:hover,.platform-matrix li:hover{transform:translateY(-4px)}
+ .platform-matrix li:hover{background-color:#eeeee7}
+ .copy-command button:hover{transform:scale(1.1);color:var(--orange)}
+ .copy-command button{transition:transform .2s,color .2s}
+}
+@keyframes container-drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes status-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media(max-width:480px){.platform-menu .download-picker{grid-template-columns:1fr}.platform-panel{padding:15px}.platform-menu{max-width:100%}}
