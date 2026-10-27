@@ -59,14 +59,14 @@
 .footer>div{flex-wrap:wrap;justify-content:flex-end;row-gap:12px}
 @media(max-width:800px){.legal-main{margin-top:32px;padding:48px 25px 60px}.legal-content h1{font-size:44px;letter-spacing:-1.5px}.legal-content h2{font-size:23px}.legal-content p{font-size:15px}.footer>div{justify-content:flex-start}}
 /* The chooser expands in the flow instead of covering the hero. */
-.download-row{display:block}
+.download-row{display:flex;align-items:center;gap:20px;position:relative}
 .download-row>.button{white-space:nowrap}
-.platform-menu{display:block;width:100%;max-width:480px;margin-top:13px}
+.platform-menu{position:relative;flex:0 0 auto;width:auto;margin:0;z-index:10}
 .platform-menu>summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;list-style:none;user-select:none}
 .platform-menu>summary::-webkit-details-marker{display:none}
 .platform-menu>summary span{display:inline-block;transition:transform .25s ease}
 .platform-menu[open]>summary span{transform:rotate(180deg)}
-.platform-panel{margin-top:12px;padding:17px 18px 14px;background:#efefe7;border:1px solid #deded2;border-radius:7px;animation:platform-enter .28s ease both}
+.platform-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(420px, calc(100vw - 48px));margin:0;padding:17px 18px 14px;box-shadow:0 16px 36px #25251c20;background:#efefe7;border:1px solid #deded2;border-radius:7px;animation:platform-enter .28s ease both}
 .platform-menu .download-picker{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0;padding:0;border:0;background:transparent}
 .platform-menu .all-downloads{position:static;display:block;margin:16px 0 0;padding:0;border:0;border-top:1px solid var(--line)}
 .platform-menu .all-downloads summary{padding:14px 0;font-size:13px}
@@ -87,10 +87,9 @@
 
 /* Small reactions, with all motion disabled by reduced-motion preferences. */
 @media (prefers-reduced-motion: no-preference){
- .container-drawing svg{animation:container-drift 7s ease-in-out infinite}
+
  .art-topline .live-dot:before{animation:status-pulse 2.8s ease-in-out infinite}
- .steps article,.platform-matrix li{transition:transform .25s ease,background-color .25s ease}
- .steps article:hover,.platform-matrix li:hover{transform:translateY(-4px)}
+ .steps article,.platform-matrix li{transition:background-color .25s ease,color .25s ease}
  .platform-matrix li:hover{background-color:#eeeee7}
  .copy-command button:hover{transform:scale(1.1);color:var(--orange)}
  .copy-command button{transition:transform .2s,color .2s}
@@ -98,3 +97,23 @@
 @keyframes container-drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 @keyframes status-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media(max-width:480px){.platform-menu .download-picker{grid-template-columns:1fr}.platform-panel{padding:15px}.platform-menu{max-width:100%}}
+
+/* Anchored popover: opening it never changes the hero layout. */
+.platform-menu>summary{transition:color .2s,border-color .2s}
+.platform-menu>summary:hover,.platform-menu[open]>summary{color:var(--orange);border-color:var(--orange)}
+.platform-menu.is-closing .platform-panel{animation:platform-exit .18s ease both;pointer-events:none}
+.picker-option,.download-list a,.text-link,.docs-group a{transition:background-color .2s,color .2s}
+.setup-tabs button{transition:color .2s,background-color .2s,border-color .2s}
+.faq-list summary span{transition:transform .25s ease,color .2s}
+@keyframes platform-exit{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-6px)}}
+@media(max-width:480px){
+ .download-row{flex-wrap:wrap;gap:10px 18px}
+ .platform-menu{position:static;width:auto}
+ .platform-menu .platform-panel{left:0;right:auto;width:min(420px,100%)}
+ .platform-menu .download-picker{grid-template-columns:1fr}
+}
+.platform-menu{position:static}
+.platform-menu .platform-panel{left:0;right:auto;width:min(420px,100%)}
+@media (prefers-reduced-motion: no-preference){
+ .setup-panel [role=tabpanel]:not([hidden]),.all-downloads[open] .download-list{animation:answer-enter .22s ease both}
+}

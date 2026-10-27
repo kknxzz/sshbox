@@ -213,6 +213,36 @@ function enhancePicker(select) {
 enhancePicker(osPicker);
 enhancePicker(archPicker);
 
+// Leave the layout untouched while the platform popover opens and closes.
+const menuSummary = platformMenu.querySelector(':scope > summary');
+let closeTimer;
+function closePlatformMenu(restoreFocus = false) {
+  if (!platformMenu.open || platformMenu.classList.contains('is-closing')) return;
+  const finish = () => {
+    platformMenu.open = false;
+    platformMenu.classList.remove('is-closing');
+    if (restoreFocus) menuSummary.focus();
+  };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return finish();
+  platformMenu.classList.add('is-closing');
+  clearTimeout(closeTimer);
+  closeTimer = setTimeout(finish, 180);
+}
+menuSummary.addEventListener('click', event => {
+  if (!platformMenu.open) return;
+  event.preventDefault();
+  closePlatformMenu();
+});
+document.addEventListener('pointerdown', event => {
+  if (!platformMenu.contains(event.target)) closePlatformMenu();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && platformMenu.open && !platformMenu.querySelector('.picker-open')) {
+    event.preventDefault(); closePlatformMenu(true);
+  }
+});
+
+
 // Animate each section as it enters the viewport; content stays visible if
 // JavaScript or IntersectionObserver is unavailable.
 if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
