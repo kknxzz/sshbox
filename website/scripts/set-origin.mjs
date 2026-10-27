@@ -2,7 +2,7 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 const url = new URL(process.argv[2]);
 if(url.protocol !== 'https:' || url.pathname !== '/' || url.search || url.hash) throw Error('Use an HTTPS origin, e.g. https://sshbox.example');
-const files=['index.html','robots.txt','sitemap.xml'];
+const files=['index.html','robots.txt','sitemap.xml','privacy/index.html','terms/index.html'];
 const homepage=new URL('../dist/index.html',import.meta.url);
 const old=readFileSync(homepage,'utf8').match(/rel="canonical" href="(https:\/\/[^"/]+)\//)?.[1];
 if(!old) throw Error('Missing canonical URL');

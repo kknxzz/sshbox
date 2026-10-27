@@ -17,4 +17,6 @@ The canonical URL, sitemap, and social metadata use https://sshbox.constlm.xyz. 
 node scripts/set-origin.mjs https://your-domain.example
 ```
 
-Page text, metadata, platform links, and structured data are in the initial HTML so they remain accessible without JavaScript. No analytics or tracking cookies. ENDLESS is self-hosted; its source and usage notes are in `dist/assets/FONT-LICENSE.txt`.
+Page text, metadata, platform links, and structured data are in the initial HTML so they remain accessible without JavaScript. The site code does not include an analytics script or set tracking cookies. Cloudflare and the server may process request data as described in the privacy policy. ENDLESS is self-hosted; its source and usage notes are in `dist/assets/FONT-LICENSE.txt`.
+
+Privacy and terms source lives in `legal-output/`. After editing either document, run `node scripts/build-legal.mjs` to update the public pages. Set a server-log retention period and review the documents against the deployed setup before publication.
