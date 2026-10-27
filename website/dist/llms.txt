@@ -1,0 +1,11 @@
+# sshbox
+
+> sshbox is an open-source Go SSH server that starts a fresh Docker or Podman container for each session and removes it on disconnect.
+
+The default image is alpine:latest, with /bin/sh, no container network access, 256 MiB of memory, and 0.5 CPU. sshbox accepts any username and password. It should sit behind a trusted access layer such as a VPN or Tailscale. Container isolation is not a hardened security boundary. No persistent volumes are provided. Optional session recordings, when enabled by the operator, remain on the host.
+
+- [Source and documentation](https://github.com/kknxzz/sshbox)
+- [Tagged releases and binaries](https://github.com/kknxzz/sshbox/releases/latest)
+- [Issues](https://github.com/kknxzz/sshbox/issues)
+
+Tagged binaries are available for Linux amd64/arm64, macOS amd64/arm64, and Windows amd64. Native Windows server PTY support is unverified. Browser platform detection is best-effort; visitors can manually select their OS and processor.

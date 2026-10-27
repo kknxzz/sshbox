@@ -1,0 +1,41 @@
+{
+  "tag_name": "v1.1.0",
+  "html_url": "https://github.com/kknxzz/sshbox/releases/tag/v1.1.0",
+  "assets": [
+    {
+      "name": "checksums.txt",
+      "browser_download_url": "https://github.com/kknxzz/sshbox/releases/download/v1.1.0/checksums.txt",
+      "size": 485
+    },
+    {
+      "name": "sshbox_1.1.0_darwin_amd64.tar.gz",
+      "browser_download_url": "https://github.com/kknxzz/sshbox/releases/download/v1.1.0/sshbox_1.1.0_darwin_amd64.tar.gz",
+      "size": 4252742
+    },
+    {
+      "name": "sshbox_1.1.0_darwin_arm64.tar.gz",
+      "browser_download_url": "https://github.com/kknxzz/sshbox/releases/download/v1.1.0/sshbox_1.1.0_darwin_arm64.tar.gz",
+      "size": 3992587
+    },
+    {
+      "name": "sshbox_1.1.0_linux_amd64.tar.gz",
+      "browser_download_url": "https://github.com/kknxzz/sshbox/releases/download/v1.1.0/sshbox_1.1.0_linux_amd64.tar.gz",
+      "size": 4142937
+    },
+    {
+      "name": "sshbox_1.1.0_linux_arm64.tar.gz",
+      "browser_download_url": "https://github.com/kknxzz/sshbox/releases/download/v1.1.0/sshbox_1.1.0_linux_arm64.tar.gz",
+      "size": 3799768
+    },
+    {
+      "name": "sshbox_1.1.0_source.tar.gz",
+      "browser_download_url": "https://github.com/kknxzz/sshbox/releases/download/v1.1.0/sshbox_1.1.0_source.tar.gz",
+      "size": 7987
+    },
+    {
+      "name": "sshbox_1.1.0_windows_amd64.zip",
+      "browser_download_url": "https://github.com/kknxzz/sshbox/releases/download/v1.1.0/sshbox_1.1.0_windows_amd64.zip",
+      "size": 4188863
+    }
+  ]
+}
