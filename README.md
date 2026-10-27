@@ -86,7 +86,7 @@ sshbox reads `config.toml` from the current directory by default, falling back t
 | `network` | `--network` | `none` | Docker network mode |
 | `memory` | `--memory` | `256m` | Docker memory limit |
 | `cpus` | `--cpus` | `0.5` | Docker CPU limit |
-| `idle_timeout` | `--idle-timeout` | `10m` | disconnect after this long with no activity (warns 10s before) |
+| `idle_timeout` | `--idle-timeout` | `10m` | disconnect after this long with no shell traffic; interactive sessions warn 10s before |
 | `host_key_path` | `--host-key` | `host_key` | where the ssh host key is stored, generated on first run |
 | `runtime` | `--runtime` | `docker` | container runtime binary -- `docker` or `podman` |
 | `log_format` | `--log-format` | `text` | `text` or `json` |

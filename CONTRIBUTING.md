@@ -4,7 +4,7 @@ sshbox does one thing: spin up a throwaway container per SSH connection and tear
 
 ## Before opening a PR
 
-- Run `gofmt -l .` and `go vet ./...`. Both should come back clean.
+- Run `gofmt -l .`, `go vet ./...`, and `go test -race ./...`. All should pass.
 - Keep changes scoped to the thing you're fixing or adding. A bug fix doesn't need a refactor riding along with it.
 - No new dependencies unless the standard library genuinely can't do it.
 
