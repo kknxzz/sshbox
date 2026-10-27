@@ -111,7 +111,10 @@ func openRecording(dir, id string, start time.Time, logger *slog.Logger) (*os.Fi
 // NewHandler builds the ssh.Handler that spawns one container per
 // session and tears it down when the session ends.
 func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog.Logger) ssh.Handler {
-	var active atomic.Int64
+	var slots chan struct{}
+	if cfg.MaxSessions > 0 {
+		slots = make(chan struct{}, cfg.MaxSessions)
+	}
 
 	// logBoth writes to the main logger, and to the audit log too if one
 	// is configured -- a dedicated, connection-only paper trail separate
@@ -131,14 +134,17 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 		user, remote := s.User(), s.RemoteAddr().String()
 		start := time.Now()
 
-		if cfg.MaxSessions > 0 && active.Load() >= int64(cfg.MaxSessions) {
-			logger.Info("session rejected, at capacity", "id", id, "user", user, "remote", remote, "max_sessions", cfg.MaxSessions)
-			fmt.Fprintf(s, "sshbox: too many active sessions (max %d), try again shortly\r\n", cfg.MaxSessions)
-			s.Exit(1)
-			return
+		if slots != nil {
+			select {
+			case slots <- struct{}{}:
+				defer func() { <-slots }()
+			default:
+				logBoth("session rejected, at capacity", "id", id, "user", user, "remote", remote, "max_sessions", cfg.MaxSessions)
+				fmt.Fprintf(s, "sshbox: too many active sessions (max %d), try again shortly\r\n", cfg.MaxSessions)
+				s.Exit(1)
+				return
+			}
 		}
-		active.Add(1)
-		defer active.Add(-1)
 
 		recFile, rec := openRecording(cfg.SessionLog, id, start, logger)
 		if recFile != nil {
