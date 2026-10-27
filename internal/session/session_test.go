@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -130,5 +131,95 @@ func TestConcurrentSessionLimit(t *testing.T) {
 	line, err := output.ReadString('\n')
 	if err != nil || strings.TrimSpace(line) != "ready" {
 		t.Fatal(fmt.Sprint("slot was not released: ", line, err))
+	}
+}
+
+type warningSession struct {
+	ssh.Session
+	warnings chan struct{}
+}
+
+func (s warningSession) Write(p []byte) (int, error) {
+	select {
+	case s.warnings <- struct{}{}:
+	default:
+	}
+	return len(p), nil
+}
+
+func TestIdleWarningDoesNotExtendDeadline(t *testing.T) {
+	s := warningSession{warnings: make(chan struct{}, 4)}
+	last := &atomic.Int64{}
+	start := time.Now()
+	last.Store(start.UnixNano())
+	expired := make(chan struct{})
+	go watchIdle(s, last, 400*time.Millisecond, 200*time.Millisecond, make(chan struct{}), func() { close(expired) })
+	select {
+	case <-s.warnings:
+	case <-time.After(time.Second):
+		t.Fatal("no idle warning")
+	}
+	select {
+	case <-expired:
+	case <-time.After(time.Second):
+		t.Fatal("idle timeout never fired")
+	}
+	if elapsed := time.Since(start); elapsed > 550*time.Millisecond {
+		t.Fatalf("warning extended deadline: %s", elapsed)
+	}
+}
+
+func TestActivityResetsIdleDeadline(t *testing.T) {
+	s := warningSession{warnings: make(chan struct{}, 4)}
+	last := &atomic.Int64{}
+	last.Store(time.Now().UnixNano())
+	expired := make(chan struct{})
+	go watchIdle(s, last, 400*time.Millisecond, 200*time.Millisecond, make(chan struct{}), func() { close(expired) })
+	select {
+	case <-s.warnings:
+	case <-time.After(time.Second):
+		t.Fatal("no first warning")
+	}
+	reset := time.Now()
+	last.Store(reset.UnixNano())
+	select {
+	case <-expired:
+		t.Fatal("activity did not reset deadline")
+	case <-time.After(300 * time.Millisecond):
+	}
+	select {
+	case <-expired:
+	case <-time.After(time.Second):
+		t.Fatal("idle timeout never fired after reset")
+	}
+	if time.Since(reset) < 400*time.Millisecond {
+		t.Fatal("disconnected too early")
+	}
+}
+
+func TestPipeSessionTimesOutWithoutWarning(t *testing.T) {
+	addr, _, dir := testServer(t, config.Config{IdleDuration: 200 * time.Millisecond})
+	_, _, output := connect(t, addr)
+	line, err := output.ReadString('\n')
+	if err != nil || strings.TrimSpace(line) != "ready" {
+		t.Fatalf("start: %q %v", line, err)
+	}
+	rest, err := io.ReadAll(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rest) != 0 {
+		t.Fatalf("idle warning corrupted pipe output: %q", rest)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		files, _ := filepath.Glob(filepath.Join(dir, "*.killed"))
+		if len(files) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("idle container was not killed")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

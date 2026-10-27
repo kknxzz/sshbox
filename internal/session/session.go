@@ -4,6 +4,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -42,34 +43,64 @@ func (a *activitySession) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// warnBeforeIdleTimeout periodically checks how long it's been since the
-// client last sent data and, once within idleWarnBefore of the
-// configured idle timeout, writes a one-time warning to the session.
-// gliderlabs/ssh enforces the actual disconnect independently of this --
-// it just gives the person using the session a heads up first.
-func warnBeforeIdleTimeout(s ssh.Session, lastActivity *atomic.Int64, idleDuration time.Duration, stop <-chan struct{}) {
-	if idleDuration <= idleWarnBefore {
+func (a *activitySession) Write(p []byte) (int, error) {
+	n, err := a.Session.Write(p)
+	if n > 0 {
+		a.lastActivity.Store(time.Now().UnixNano())
+	}
+	return n, err
+}
+
+type activityWriter struct {
+	io.Writer
+	lastActivity *atomic.Int64
+}
+
+func (w activityWriter) Write(p []byte) (int, error) {
+	n, err := w.Writer.Write(p)
+	if n > 0 {
+		w.lastActivity.Store(time.Now().UnixNano())
+	}
+	return n, err
+}
+
+func (a *activitySession) Stderr() io.ReadWriter {
+	return struct {
+		io.Reader
+		io.Writer
+	}{
+		a.Session.Stderr(), activityWriter{a.Session.Stderr(), a.lastActivity},
+	}
+}
+
+// Server-generated warnings bypass activity tracking. Otherwise the warning
+// would extend the very deadline it announces.
+func watchIdle(s ssh.Session, lastActivity *atomic.Int64, idle, warning time.Duration, stop <-chan struct{}, expire func()) {
+	if idle <= 0 {
 		return
 	}
-	ticker := time.NewTicker(time.Second)
+	interval := min(time.Second, idle/20)
+	if warning > 0 {
+		interval = min(interval, warning/5)
+	}
+	interval = max(interval, time.Millisecond)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	warned := false
+	var warnedAt int64
 	for {
 		select {
 		case <-stop:
 			return
 		case <-ticker.C:
-			remaining := idleDuration - time.Since(time.Unix(0, lastActivity.Load()))
-			switch {
-			case remaining <= 0:
-				return // the real timeout should be firing any moment now
-			case remaining <= idleWarnBefore:
-				if !warned {
-					fmt.Fprintf(s, "\r\n[sshbox] idle timeout in %s -- send any input to stay connected\r\n", remaining.Round(time.Second))
-					warned = true
-				}
-			default:
-				warned = false
+			last := lastActivity.Load()
+			remaining := idle - time.Since(time.Unix(0, last))
+			if remaining <= 0 {
+				expire()
+				return
+			}
+			if warning > 0 && idle > warning && remaining <= warning && warnedAt != last {
+				warnedAt = last
+				fmt.Fprintf(s, "\r\n[sshbox] idle timeout in %s -- send any input to stay connected\r\n", remaining.Round(time.Second))
 			}
 		}
 	}
@@ -177,11 +208,13 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 		// container -- the daemon owns its lifecycle independently of the
 		// CLI process that started it. So we explicitly kill the named
 		// container; combined with --rm that also removes it.
+		ctx, cancel := context.WithCancel(s.Context())
+		defer cancel()
 		stopWatch := make(chan struct{})
 		defer close(stopWatch)
 		go func() {
 			select {
-			case <-s.Context().Done():
+			case <-ctx.Done():
 				if err := rt.Kill(name); err != nil {
 					logger.Debug("container kill on session end", "id", id, "container", name, "err", err)
 				}
@@ -192,7 +225,14 @@ func NewHandler(cfg config.Config, rt runtime.Runtime, logger, auditLogger *slog
 		lastActivity := &atomic.Int64{}
 		lastActivity.Store(time.Now().UnixNano())
 		wrapped := &activitySession{Session: s, lastActivity: lastActivity}
-		go warnBeforeIdleTimeout(wrapped, lastActivity, cfg.IdleDuration, stopWatch)
+		warning := time.Duration(0)
+		if isPty {
+			warning = idleWarnBefore
+		}
+		go watchIdle(s, lastActivity, cfg.IdleDuration, warning, stopWatch, func() {
+			cancel()
+			s.Close()
+		})
 
 		if isPty {
 			runPTYSession(cmd, wrapped, ptyReq, winCh, logger, id, rec)

@@ -81,9 +81,8 @@ func main() {
 	}
 
 	srv := &ssh.Server{
-		Addr:        cfg.ListenAddr,
-		IdleTimeout: cfg.IdleDuration,
-		Handler:     session.NewHandler(cfg, rt, logger, auditLogger),
+		Addr:    cfg.ListenAddr,
+		Handler: session.NewHandler(cfg, rt, logger, auditLogger),
 		PasswordHandler: func(ctx ssh.Context, password string) bool {
 			return true
 		},
